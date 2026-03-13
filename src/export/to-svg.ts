@@ -1,6 +1,6 @@
 import type { FlowChartSchema, FlowLayout, FlowNode } from "../types/schema.ts";
 import type { ShapeSize } from "../layout/sizing.ts";
-import { COLORS, FONT_FAMILY, ARROW_GAP, LANE, FONT } from "../layout/constants.ts";
+import { COLORS, FONT_FAMILY, ARROW_GAP, LANE, FONT, PHASE } from "../layout/constants.ts";
 import { calculateLaneDividers } from "../layout/engine.ts";
 
 function getNodeColors(node: FlowNode) {
@@ -75,6 +75,47 @@ export function exportToSVG(
   parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="#888"/>`);
   parts.push(`  </marker>`);
   parts.push(`</defs>`);
+
+  // Phase bands
+  if (schema.phases.length > 0) {
+    parts.push(`<!-- ====== Phase Bands ====== -->`);
+    const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+    const phasePadding = 20;
+
+    for (const phase of sortedPhases) {
+      const phaseNodes = schema.nodes.filter((n) => n.phase === phase.id);
+      if (phaseNodes.length === 0) continue;
+
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      for (const pn of phaseNodes) {
+        const pos = layout.positions[pn.id];
+        const size = sizes.get(pn.id);
+        if (!pos || !size) continue;
+
+        const halfH =
+          pn.type === "decision" || pn.type === "start" || pn.type === "end"
+            ? size.height
+            : size.height / 2;
+        minY = Math.min(minY, pos.y - halfH);
+        maxY = Math.max(maxY, pos.y + halfH);
+      }
+
+      if (minY === Infinity) continue;
+
+      const bandTop = minY - phasePadding;
+      const bandHeight = maxY - minY + phasePadding * 2;
+      const bandX = LANE.marginLeft;
+
+      parts.push(
+        `<rect x="${bandX}" y="${bandTop}" width="${PHASE.width}" height="${bandHeight}" rx="3" fill="${COLORS.phase.fill}" stroke="${COLORS.phase.stroke}" stroke-width="1"/>`,
+      );
+      parts.push(
+        `<text x="${bandX + 15}" y="${bandTop + bandHeight / 2 + 5}" font-size="14" font-weight="600" fill="${COLORS.phase.text}">${escapeXml(phase.label)}</text>`,
+      );
+    }
+  }
 
   // Lane headers
   const boundaries = calculateLaneDividers(layout.positions, schema, sizes);
