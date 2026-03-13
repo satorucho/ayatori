@@ -8,7 +8,7 @@ import type {
 } from "../types/schema.ts";
 import { measureNodeText, calculateShapeSize, unifyWidthsInColumn } from "./sizing.ts";
 import type { ShapeSize } from "./sizing.ts";
-import { SPACING, LANE } from "./constants.ts";
+import { SPACING, LANE, PHASE } from "./constants.ts";
 import type { LaneBoundary } from "./types.ts";
 
 export interface LayoutOptions {
@@ -29,6 +29,70 @@ function getElkNodeSize(
     return { width: size.width * 2, height: size.height * 2 };
   }
   return { width: size.width, height: size.height };
+}
+
+/** Get the half-height of a node for collision calculations */
+function getNodeHalfHeight(node: FlowNode, size: ShapeSize): number {
+  if (node.type === "decision" || node.type === "start" || node.type === "end") {
+    return size.height; // size stores half-dimensions for these types
+  }
+  return size.height / 2;
+}
+
+/**
+ * Topological sort using Kahn's algorithm.
+ * Tie-breaking: nodes at the same level are ordered by their ELK-assigned Y position.
+ */
+function topologicalSort(
+  schema: FlowChartSchema,
+  positions: Record<string, NodePosition>,
+): string[] {
+  const inDegree = new Map<string, number>();
+  const adjacency = new Map<string, string[]>();
+
+  for (const node of schema.nodes) {
+    inDegree.set(node.id, 0);
+    adjacency.set(node.id, []);
+  }
+
+  for (const edge of schema.edges) {
+    adjacency.get(edge.source)?.push(edge.target);
+    inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+  }
+
+  // Start with nodes that have no incoming edges, sorted by Y
+  const queue: string[] = [];
+  for (const node of schema.nodes) {
+    if ((inDegree.get(node.id) ?? 0) === 0) {
+      queue.push(node.id);
+    }
+  }
+  queue.sort((a, b) => (positions[a]?.y ?? 0) - (positions[b]?.y ?? 0));
+
+  const result: string[] = [];
+  while (queue.length > 0) {
+    // Sort by Y for deterministic ordering at each step
+    queue.sort((a, b) => (positions[a]?.y ?? 0) - (positions[b]?.y ?? 0));
+    const nodeId = queue.shift()!;
+    result.push(nodeId);
+
+    for (const target of adjacency.get(nodeId) ?? []) {
+      const newDegree = (inDegree.get(target) ?? 1) - 1;
+      inDegree.set(target, newDegree);
+      if (newDegree === 0) {
+        queue.push(target);
+      }
+    }
+  }
+
+  // Add any remaining nodes (disconnected) not yet in result
+  for (const node of schema.nodes) {
+    if (!result.includes(node.id)) {
+      result.push(node.id);
+    }
+  }
+
+  return result;
 }
 
 export function computeAllSizes(
@@ -76,18 +140,15 @@ export async function calculateLayout(
   options?: LayoutOptions,
 ): Promise<FlowLayout> {
   const sizes = computeAllSizes(schema);
-  const laneOrder = new Map(schema.lanes.map((l) => [l.id, l.order]));
 
+  // Build ELK children WITHOUT partitioning – partitioning maps to horizontal
+  // layers in DOWN mode which is wrong for vertical swimlanes.
   const elkChildren: ElkNode[] = schema.nodes.map((node) => {
     const { width, height } = getElkNodeSize(node, sizes);
-    const partition = laneOrder.get(node.lane) ?? 0;
     return {
       id: node.id,
       width,
       height,
-      layoutOptions: {
-        "elk.partitioning.partition": String(partition),
-      },
     };
   });
 
@@ -112,7 +173,6 @@ export async function calculateLayout(
       "elk.spacing.edgeNode": "20",
       "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
       "elk.layered.nodePlacement.strategy": "LINEAR_SEGMENTS",
-      "elk.partitioning.activate": "true",
     },
   };
 
@@ -143,7 +203,12 @@ export async function calculateLayout(
     }
   }
 
+  // Post-processing pipeline:
+  // 1. Align X positions to lane centers
   alignNodesByLane(positions, schema, sizes);
+  // 2. Resolve Y conflicts for nodes in the same lane at overlapping Y positions
+  resolveYConflicts(positions, schema, sizes);
+  // 3. Position short branch nodes beside their decision parent
   applyShortBranches(positions, schema, sizes);
 
   return {
@@ -155,7 +220,7 @@ export async function calculateLayout(
 /**
  * Post-process: align nodes within each lane to a single CX per lane.
  * Follows style-guide §8-2:
- *   First lane CX = marginLeft + maxHalfWidth
+ *   First lane CX = phaseOffset + marginLeft + maxHalfWidth
  *   Next  lane CX = prevLaneMaxRight + gapBetweenLanes + maxHalfWidth
  *
  * Short-branch nodes are excluded (handled by applyShortBranches).
@@ -173,6 +238,9 @@ function alignNodesByLane(
       shortBranchIds.add(edge.target);
     }
   }
+
+  // If phases exist, add horizontal offset for the phase column
+  const phaseOffset = schema.phases.length > 0 ? PHASE.width + PHASE.gapToFlow : 0;
 
   let prevMaxRight = 0;
 
@@ -198,7 +266,7 @@ function alignNodesByLane(
 
     const cx =
       prevMaxRight === 0
-        ? LANE.marginLeft + maxHalfWidth
+        ? phaseOffset + LANE.marginLeft + maxHalfWidth
         : prevMaxRight + LANE.gapBetweenLanes + maxHalfWidth;
 
     for (const nodeId of laneNodeIds) {
@@ -208,6 +276,86 @@ function alignNodesByLane(
     }
 
     prevMaxRight = cx + maxHalfWidth;
+  }
+}
+
+/**
+ * Post-process: resolve Y-axis conflicts for nodes in the same lane.
+ * When ELK places two nodes at the same layer (e.g. parallel branches),
+ * and both belong to the same lane, they'd overlap after X alignment.
+ *
+ * We process nodes in topological order and ensure each node's Y position
+ * respects:
+ *   1. Its predecessors' bottom edges + spacing
+ *   2. The previous same-lane node's bottom edge + spacing
+ *
+ * Short-branch nodes are excluded (handled by applyShortBranches).
+ */
+function resolveYConflicts(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  sizes: Map<string, ShapeSize>,
+): void {
+  const shortBranchIds = new Set<string>();
+  for (const edge of schema.edges) {
+    if (edge.type === "no" && isShortBranchNode(edge.target, schema)) {
+      shortBranchIds.add(edge.target);
+    }
+  }
+
+  const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
+  const topoOrder = topologicalSort(schema, positions);
+
+  // Track the maximum bottom Y for each lane
+  const laneBottoms = new Map<string, number>();
+
+  // Build predecessor map for edge constraints
+  const predecessors = new Map<string, string[]>();
+  for (const node of schema.nodes) {
+    predecessors.set(node.id, []);
+  }
+  for (const edge of schema.edges) {
+    predecessors.get(edge.target)?.push(edge.source);
+  }
+
+  for (const nodeId of topoOrder) {
+    if (shortBranchIds.has(nodeId)) continue;
+
+    const node = nodeMap.get(nodeId);
+    const pos = positions[nodeId];
+    const size = sizes.get(nodeId);
+    if (!node || !pos || !size) continue;
+
+    const halfH = getNodeHalfHeight(node, size);
+
+    // Constraint 1: must be below all predecessors + spacing
+    let minY = pos.y;
+    for (const predId of predecessors.get(nodeId) ?? []) {
+      if (shortBranchIds.has(predId)) continue;
+      const predNode = nodeMap.get(predId);
+      const predPos = positions[predId];
+      const predSize = sizes.get(predId);
+      if (!predNode || !predPos || !predSize) continue;
+
+      const predHalfH = getNodeHalfHeight(predNode, predSize);
+      const predBottom = predPos.y + predHalfH;
+      const requiredY = predBottom + SPACING.M_VERTICAL + halfH;
+      minY = Math.max(minY, requiredY);
+    }
+
+    // Constraint 2: must not overlap previous nodes in the same lane
+    const laneBottom = laneBottoms.get(node.lane);
+    if (laneBottom !== undefined) {
+      const requiredY = laneBottom + SPACING.M_VERTICAL + halfH;
+      minY = Math.max(minY, requiredY);
+    }
+
+    pos.y = minY;
+    const newBottom = pos.y + halfH;
+    laneBottoms.set(
+      node.lane,
+      Math.max(laneBottoms.get(node.lane) ?? -Infinity, newBottom),
+    );
   }
 }
 
