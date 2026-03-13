@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   useNodesState,
   useEdgesState,
@@ -291,7 +291,9 @@ export function useFlowState(initialSchema: FlowChartSchema) {
 
   // Keep a ref to laneBoundaries for use in drag handler
   const laneBoundariesRef = useRef<LaneBoundary[]>(laneBoundaries);
-  laneBoundariesRef.current = laneBoundaries;
+  useEffect(() => {
+    laneBoundariesRef.current = laneBoundaries;
+  }, [laneBoundaries]);
 
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent, rfNode: Node) => {
