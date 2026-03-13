@@ -136,7 +136,9 @@ function resolveHandles(
       });
 
       if (hasIntermediate) {
-        return { sourceHandle: "left", targetHandle: "left" };
+        // Route right to avoid crossing through intermediate nodes.
+        // The space between lanes provides clear visual room for the bypass path.
+        return { sourceHandle: "right", targetHandle: "right" };
       }
     }
   }
