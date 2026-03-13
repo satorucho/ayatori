@@ -93,7 +93,7 @@ function schemaToRFNodes(
 
 function resolveHandles(
   edge: FlowChartSchema["edges"][0],
-  _schema: FlowChartSchema,
+  schema: FlowChartSchema,
   layout: FlowLayout | null,
 ): { sourceHandle: string; targetHandle: string } {
   // "no" edges: always horizontal (decision right → target left)
@@ -111,6 +111,32 @@ function resolveHandles(
           sourceHandle: tgtPos.x > srcPos.x ? "right" : "left",
           targetHandle: tgtPos.x > srcPos.x ? "left" : "right",
         };
+      }
+    }
+  }
+
+  // For normal downward edges: check if the edge would pass through an
+  // intermediate node in the same lane. If so, route to the left side
+  // to avoid visual overlap / hidden edges.
+  if (layout && edge.type !== "loop") {
+    const srcNode = schema.nodes.find((n) => n.id === edge.source);
+    const tgtNode = schema.nodes.find((n) => n.id === edge.target);
+    const srcPos = layout.positions[edge.source];
+    const tgtPos = layout.positions[edge.target];
+
+    if (srcNode && tgtNode && srcPos && tgtPos && srcNode.lane === tgtNode.lane) {
+      const minY = Math.min(srcPos.y, tgtPos.y);
+      const maxY = Math.max(srcPos.y, tgtPos.y);
+
+      const hasIntermediate = schema.nodes.some((n) => {
+        if (n.id === edge.source || n.id === edge.target) return false;
+        if (n.lane !== srcNode.lane) return false;
+        const pos = layout.positions[n.id];
+        return pos !== undefined && pos.y > minY + 10 && pos.y < maxY - 10;
+      });
+
+      if (hasIntermediate) {
+        return { sourceHandle: "left", targetHandle: "left" };
       }
     }
   }
