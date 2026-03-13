@@ -88,6 +88,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     onEdgesChange,
     onConnect,
     onReconnect,
+    onNodeDragStop,
     schema,
     updateSchema,
     runAutoLayout,
@@ -206,6 +207,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onReconnect={onReconnect}
+            onNodeDragStop={onNodeDragStop}
             reconnectRadius={20}
             connectionMode="loose"
             onNodeClick={handleNodeClick}

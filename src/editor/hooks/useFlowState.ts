@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   useNodesState,
   useEdgesState,
@@ -19,6 +19,31 @@ import { computeAllSizes, calculateLayout, calculateLaneDividers } from "../../l
 import type { ShapeSize } from "../../layout/sizing.ts";
 import type { LaneBoundary } from "../../layout/types.ts";
 import { generateId } from "../../utils/id.ts";
+
+/**
+ * Determine which lane a node belongs to based on its center-X position
+ * relative to lane boundaries.
+ */
+function determineLaneFromPosition(
+  centerX: number,
+  laneBoundaries: LaneBoundary[],
+  schema: FlowChartSchema,
+): string | null {
+  if (laneBoundaries.length === 0) return null;
+
+  const sortedLanes = [...schema.lanes].sort((a, b) => a.order - b.order);
+
+  // Walk through boundaries; the node belongs to the lane whose region contains it
+  for (let i = 0; i < laneBoundaries.length; i++) {
+    const boundary = laneBoundaries[i];
+    if (centerX <= boundary.dividerX) {
+      return boundary.laneId;
+    }
+  }
+
+  // If past all dividers, assign to the last lane
+  return sortedLanes[sortedLanes.length - 1]?.id ?? null;
+}
 
 function schemaNodeTypeToRFType(
   type: string,
@@ -68,7 +93,7 @@ function schemaToRFNodes(
 
 function resolveHandles(
   edge: FlowChartSchema["edges"][0],
-  _schema: FlowChartSchema,
+  schema: FlowChartSchema,
   layout: FlowLayout | null,
 ): { sourceHandle: string; targetHandle: string } {
   // "no" edges: always horizontal (decision right → target left)
@@ -86,6 +111,34 @@ function resolveHandles(
           sourceHandle: tgtPos.x > srcPos.x ? "right" : "left",
           targetHandle: tgtPos.x > srcPos.x ? "left" : "right",
         };
+      }
+    }
+  }
+
+  // For normal downward edges: check if the edge would pass through an
+  // intermediate node in the same lane. If so, route to the left side
+  // to avoid visual overlap / hidden edges.
+  if (layout && edge.type !== "loop") {
+    const srcNode = schema.nodes.find((n) => n.id === edge.source);
+    const tgtNode = schema.nodes.find((n) => n.id === edge.target);
+    const srcPos = layout.positions[edge.source];
+    const tgtPos = layout.positions[edge.target];
+
+    if (srcNode && tgtNode && srcPos && tgtPos && srcNode.lane === tgtNode.lane) {
+      const minY = Math.min(srcPos.y, tgtPos.y);
+      const maxY = Math.max(srcPos.y, tgtPos.y);
+
+      const hasIntermediate = schema.nodes.some((n) => {
+        if (n.id === edge.source || n.id === edge.target) return false;
+        if (n.lane !== srcNode.lane) return false;
+        const pos = layout.positions[n.id];
+        return pos !== undefined && pos.y > minY + 10 && pos.y < maxY - 10;
+      });
+
+      if (hasIntermediate) {
+        // Route right to avoid crossing through intermediate nodes.
+        // The space between lanes provides clear visual room for the bypass path.
+        return { sourceHandle: "right", targetHandle: "right" };
       }
     }
   }
@@ -236,6 +289,48 @@ export function useFlowState(initialSchema: FlowChartSchema) {
     [setNodes, setEdges],
   );
 
+  // Keep a ref to laneBoundaries for use in drag handler
+  const laneBoundariesRef = useRef<LaneBoundary[]>(laneBoundaries);
+  useEffect(() => {
+    laneBoundariesRef.current = laneBoundaries;
+  }, [laneBoundaries]);
+
+  const onNodeDragStop = useCallback(
+    (_event: React.MouseEvent, rfNode: Node) => {
+      const currentBoundaries = laneBoundariesRef.current;
+      if (currentBoundaries.length === 0) return;
+
+      // Get the node's data to determine its render dimensions
+      const nodeData = rfNode.data as { shapeWidth?: number; shapeHeight?: number; nodeType?: string };
+      const nodeType = nodeData?.nodeType ?? "process";
+      let nodeW: number;
+      if (nodeType === "decision" || nodeType === "start" || nodeType === "end") {
+        nodeW = (nodeData?.shapeWidth ?? 50) * 2;
+      } else {
+        nodeW = nodeData?.shapeWidth ?? 200;
+      }
+
+      // Calculate center X from the ReactFlow node position (which is top-left)
+      const centerX = rfNode.position.x + nodeW / 2;
+
+      setSchema((prev) => {
+        const newLane = determineLaneFromPosition(centerX, currentBoundaries, prev);
+        if (!newLane) return prev;
+
+        const existingNode = prev.nodes.find((n) => n.id === rfNode.id);
+        if (!existingNode || existingNode.lane === newLane) return prev;
+
+        return {
+          ...prev,
+          nodes: prev.nodes.map((n) =>
+            n.id === rfNode.id ? { ...n, lane: newLane } : n,
+          ),
+        };
+      });
+    },
+    [],
+  );
+
   const addNode = useCallback(
     (nodeType: NodeType) => {
       const id = generateId("n");
@@ -282,6 +377,7 @@ export function useFlowState(initialSchema: FlowChartSchema) {
     onEdgesChange: onEdgesChange as OnEdgesChange,
     onConnect,
     onReconnect,
+    onNodeDragStop,
     schema,
     updateSchema,
     runAutoLayout,
