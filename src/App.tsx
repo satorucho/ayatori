@@ -132,8 +132,14 @@ export default function App() {
     <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center space-y-6 max-w-md">
         <div className="flex flex-col items-center gap-3">
-          <img src="/logo.svg" alt="Ayatori" className="w-28 h-28 dark:invert" />
-          <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Ayatori</h1>
+          <img
+            src="/logo.svg"
+            alt="Ayatori"
+            className="w-28 h-28 dark:invert"
+          />
+          <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 font-mono">
+            ayatori
+          </h1>
         </div>
         <p className="text-gray-500 dark:text-gray-400">
           業務フローチャートの双方向エディタ
@@ -163,7 +169,9 @@ export default function App() {
             ファイルを開く（JSON / YAML）
           </button>
           <div className="pt-2">
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">サンプル</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+              サンプル
+            </p>
             <div className="flex gap-2 justify-center">
               <button
                 onClick={() => handleLoadSample("simple-flow.json")}

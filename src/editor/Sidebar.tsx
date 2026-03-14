@@ -15,7 +15,6 @@ interface SidebarProps {
   updateSchema: (updater: (prev: FlowChartSchema) => FlowChartSchema) => void;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
-  onClose: () => void;
 }
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
@@ -53,15 +52,14 @@ export default function Sidebar({
   updateSchema,
   selectedNodeId,
   selectedEdgeId,
-  onClose,
 }: SidebarProps) {
   const [tab, setTab] = useState<TabId>("properties");
 
   const selectedNode = selectedNodeId
-    ? schema.nodes.find((n) => n.id === selectedNodeId) ?? null
+    ? (schema.nodes.find((n) => n.id === selectedNodeId) ?? null)
     : null;
   const selectedEdge = selectedEdgeId
-    ? schema.edges.find((e) => e.id === selectedEdgeId) ?? null
+    ? (schema.edges.find((e) => e.id === selectedEdgeId) ?? null)
     : null;
 
   const updateNode = useCallback(
@@ -122,11 +120,7 @@ export default function Sidebar({
   );
 
   const resolveComment = useCallback(
-    (
-      targetType: "node" | "edge",
-      targetId: string,
-      commentId: string,
-    ) => {
+    (targetType: "node" | "edge", targetId: string, commentId: string) => {
       if (targetType === "node") {
         updateSchema((prev) => ({
           ...prev,
@@ -164,30 +158,23 @@ export default function Sidebar({
     "w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200";
   const selectClass =
     "w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200";
-  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1";
+  const labelClass =
+    "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1";
 
   return (
-    <div className="w-72 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex gap-1">
-          <button
-            className={`px-3 py-1 text-xs rounded ${tab === "properties" ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"}`}
-            onClick={() => setTab("properties")}
-          >
-            プロパティ
-          </button>
-          <button
-            className={`px-3 py-1 text-xs rounded ${tab === "comments" ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"}`}
-            onClick={() => setTab("comments")}
-          >
-            コメント
-          </button>
-        </div>
+    <div className="w-96 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 overflow-hidden">
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
         <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-lg"
+          className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${tab === "properties" ? "text-gray-900 dark:text-gray-100 border-b-2 border-gray-900 dark:border-gray-100" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"}`}
+          onClick={() => setTab("properties")}
         >
-          ×
+          プロパティ
+        </button>
+        <button
+          className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${tab === "comments" ? "text-gray-900 dark:text-gray-100 border-b-2 border-gray-900 dark:border-gray-100" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"}`}
+          onClick={() => setTab("comments")}
+        >
+          コメント
         </button>
       </div>
 
@@ -407,7 +394,11 @@ function CommentsPanel({
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   addComment: (type: "node" | "edge", id: string, text: string) => void;
-  resolveComment: (type: "node" | "edge", id: string, commentId: string) => void;
+  resolveComment: (
+    type: "node" | "edge",
+    id: string,
+    commentId: string,
+  ) => void;
 }) {
   const [newText, setNewText] = useState("");
   const [showResolved, setShowResolved] = useState(false);
@@ -449,7 +440,9 @@ function CommentsPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">コメント</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          コメント
+        </h3>
         <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
           <input
             type="checkbox"
@@ -461,7 +454,9 @@ function CommentsPanel({
       </div>
 
       {allComments.length === 0 && (
-        <div className="text-xs text-gray-400 dark:text-gray-500">コメントはありません</div>
+        <div className="text-xs text-gray-400 dark:text-gray-500">
+          コメントはありません
+        </div>
       )}
 
       {allComments.map((item) => (
@@ -473,18 +468,18 @@ function CommentsPanel({
             <span className="font-medium text-gray-600 dark:text-gray-400">
               {item.targetLabel}
             </span>
-            <span className="text-gray-400 dark:text-gray-500">{item.comment.author}</span>
+            <span className="text-gray-400 dark:text-gray-500">
+              {item.comment.author}
+            </span>
           </div>
-          <div className="text-gray-700 dark:text-gray-300 mb-1">{item.comment.text}</div>
+          <div className="text-gray-700 dark:text-gray-300 mb-1">
+            {item.comment.text}
+          </div>
           {!item.comment.resolved && (
             <button
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               onClick={() =>
-                resolveComment(
-                  item.targetType,
-                  item.targetId,
-                  item.comment.id,
-                )
+                resolveComment(item.targetType, item.targetId, item.comment.id)
               }
             >
               解決済みにする
@@ -520,11 +515,12 @@ function CommentsPanel({
 
 // ---- Schema info panel (shown when nothing is selected) ----
 
-const GRANULARITY_OPTIONS: { value: FlowMeta["granularity"]; label: string }[] = [
-  { value: "executive", label: "経営層向け" },
-  { value: "business", label: "業務担当者向け" },
-  { value: "engineer", label: "エンジニア向け" },
-];
+const GRANULARITY_OPTIONS: { value: FlowMeta["granularity"]; label: string }[] =
+  [
+    { value: "executive", label: "経営層向け" },
+    { value: "business", label: "業務担当者向け" },
+    { value: "engineer", label: "エンジニア向け" },
+  ];
 
 function SchemaInfoPanel({
   schema,
@@ -694,7 +690,9 @@ function EditableList({
   const commitEdit = useCallback(() => {
     if (editingIdx === null) return;
     if (editValue.trim()) {
-      onChange(items.map((item, i) => (i === editingIdx ? editValue.trim() : item)));
+      onChange(
+        items.map((item, i) => (i === editingIdx ? editValue.trim() : item)),
+      );
     }
     setEditingIdx(null);
   }, [editingIdx, editValue, items, onChange]);
@@ -708,11 +706,10 @@ function EditableList({
       )}
 
       {items.map((item, i) => (
-        <div
-          key={i}
-          className="group flex gap-1 items-start text-xs"
-        >
-          <span className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0">•</span>
+        <div key={i} className="group flex gap-1 items-start text-xs">
+          <span className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0">
+            •
+          </span>
           {editingIdx === i ? (
             <textarea
               ref={editRef}

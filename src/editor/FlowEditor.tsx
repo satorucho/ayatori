@@ -492,7 +492,6 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
             updateSchema={updateSchema}
             selectedNodeId={selectedNodeId}
             selectedEdgeId={selectedEdgeId}
-            onClose={() => setSidebarOpen(false)}
           />
         )}
       </div>

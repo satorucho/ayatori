@@ -38,7 +38,7 @@ type MenuItem =
 function AyatoriIcon() {
   return (
     <img
-      src="/logo.svg"
+      src="/logo_sm.svg"
       alt="Ayatori"
       width={22}
       height={22}
@@ -192,7 +192,10 @@ export default function Toolbar({
   const runAutoLayoutWithNotice = useCallback(() => {
     void onAutoLayout()
       .then(() => {
-        onNotify?.({ type: "success", message: "自動レイアウトを実行しました" });
+        onNotify?.({
+          type: "success",
+          message: "自動レイアウトを実行しました",
+        });
       })
       .catch((err) => {
         onNotify?.({
@@ -207,12 +210,9 @@ export default function Toolbar({
     [],
   );
 
-  const hoverSwitch = useCallback(
-    (name: string) => {
-      setOpenMenu((prev) => (prev !== null && prev !== name ? name : prev));
-    },
-    [],
-  );
+  const hoverSwitch = useCallback((name: string) => {
+    setOpenMenu((prev) => (prev !== null && prev !== name ? name : prev));
+  }, []);
 
   const fileItems: MenuItem[] = [
     {
@@ -255,7 +255,7 @@ export default function Toolbar({
             label: "SVGで書き出し",
             onClick: () => {
               onExportSVG();
-                onNotify?.({ type: "success", message: "SVGを書き出しました" });
+              onNotify?.({ type: "success", message: "SVGを書き出しました" });
               close();
             },
           },
@@ -268,7 +268,7 @@ export default function Toolbar({
             label: "HTMLで書き出し",
             onClick: () => {
               onExportHTML();
-                onNotify?.({ type: "success", message: "HTMLを書き出しました" });
+              onNotify?.({ type: "success", message: "HTMLを書き出しました" });
               close();
             },
           },
@@ -281,7 +281,7 @@ export default function Toolbar({
             label: "PNGで書き出し",
             onClick: () => {
               onExportPNG();
-                onNotify?.({ type: "success", message: "PNGを書き出しました" });
+              onNotify?.({ type: "success", message: "PNGを書き出しました" });
               close();
             },
           },
@@ -334,9 +334,7 @@ export default function Toolbar({
       ? [
           {
             type: "action" as const,
-            label: freeDrawMode
-              ? "\u2713 フリードロー"
-              : "\u2003 フリードロー",
+            label: freeDrawMode ? "\u2713 フリードロー" : "\u2003 フリードロー",
             onClick: () => {
               onToggleFreeDrawMode();
               close();
@@ -570,13 +568,52 @@ export default function Toolbar({
             title={sidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
-              <line x1="13" y1="3" x2="13" y2="17" stroke="currentColor" strokeWidth="1.5" />
+              <rect
+                x="2"
+                y="3"
+                width="16"
+                height="14"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <line
+                x1="13"
+                y1="3"
+                x2="13"
+                y2="17"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
               {sidebarOpen && (
                 <>
-                  <line x1="15" y1="7" x2="16.5" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                  <line x1="15" y1="10" x2="16.5" y2="10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                  <line x1="15" y1="13" x2="16.5" y2="13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  <line
+                    x1="15"
+                    y1="7"
+                    x2="16.5"
+                    y2="7"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                  <line
+                    x1="15"
+                    y1="10"
+                    x2="16.5"
+                    y2="10"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                  <line
+                    x1="15"
+                    y1="13"
+                    x2="16.5"
+                    y2="13"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
                 </>
               )}
             </svg>
@@ -585,10 +622,7 @@ export default function Toolbar({
       </div>
 
       {openMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setOpenMenu(null)}
-        />
+        <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
       )}
     </>
   );
