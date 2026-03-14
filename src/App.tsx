@@ -5,7 +5,10 @@ import { parseSchemaText } from "./schema/parse.ts";
 
 function withBase(path: string): string {
   const normalized = path.replace(/^\/+/, "");
-  return `${import.meta.env.BASE_URL}${normalized}`;
+  const base = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  return `${base}${normalized}`;
 }
 
 const EMPTY_SCHEMA: FlowChartSchema = {
