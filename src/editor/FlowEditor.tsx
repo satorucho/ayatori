@@ -6,6 +6,7 @@ import {
   MiniMap,
   ReactFlowProvider,
   useReactFlow,
+  ConnectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { FlowChartSchema } from "../types/schema.ts";
@@ -406,7 +407,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
                 onReconnect={onReconnect}
                 onNodeDragStop={onNodeDragStop}
                 reconnectRadius={20}
-                connectionMode="loose"
+                connectionMode={ConnectionMode.Loose}
                 onNodeClick={handleNodeClick}
                 onEdgeClick={handleEdgeClick}
                 onNodeDoubleClick={handleNodeDoubleClick}

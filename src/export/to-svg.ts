@@ -290,7 +290,7 @@ export function exportToSVG(
     const tgtPt = applyGap(tgt, targetHandle, -(ARROW_GAP.end + ARROW_GAP.marker));
 
     // Style
-    let strokeColor = COLORS.arrow.default;
+    let strokeColor: string = COLORS.arrow.default;
     let strokeWidth = 1.2;
     let dash = "";
     let markerEnd = 'marker-end="url(#a)"';
@@ -314,7 +314,7 @@ export function exportToSVG(
     // Generate the path based on handle combination
     const pathPoints = buildOrthogonalPath(
       srcPt, tgtPt, sourceHandle, targetHandle,
-      schema, layout, sizes, srcNode, tgtNode, phaseBounds,
+      schema, layout, sizes, srcNode, phaseBounds,
     );
 
     if (pathPoints.length === 2) {
@@ -407,7 +407,6 @@ function buildOrthogonalPath(
   layout: FlowLayout,
   sizes: Map<string, ShapeSize>,
   srcNode: FlowNode,
-  tgtNode: FlowNode,
   phaseBounds: PhaseBoundary[],
 ): Point[] {
   // bottom → top: vertical flow (possibly with horizontal jog for different X)

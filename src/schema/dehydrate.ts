@@ -16,7 +16,7 @@ import { getDefaultStyle } from "./defaults.ts";
  */
 export interface SparseSchema {
   schemaVersion?: "1";
-  meta: SparseSchema["meta"];
+  meta: SparseMeta;
   lanes: SparseLane[];
   phases?: SparsePhase[];
   nodes: SparseNode[];
@@ -25,6 +25,14 @@ export interface SparseSchema {
   designNotes?: string[];
   openQuestions?: string[];
 }
+
+type SparseMeta = {
+  name: string;
+  purpose: string;
+  granularity: FlowChartSchema["meta"]["granularity"];
+  version: string;
+  subtitle?: string;
+};
 
 type SparseLane = { id: string; label: string; order?: number };
 type SparsePhase = { id: string; label: string; order?: number };

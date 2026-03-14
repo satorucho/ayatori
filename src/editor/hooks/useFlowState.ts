@@ -118,15 +118,18 @@ export function useFlowState(initialSchema: FlowChartSchema) {
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      const newEdge = {
+      const { source, target } = connection;
+      if (!source || !target) return;
+
+      const newEdge: Edge = {
         id: generateId("e"),
-        source: connection.source,
-        target: connection.target,
+        source,
+        target,
         sourceHandle: connection.sourceHandle ?? "bottom",
         targetHandle: connection.targetHandle ?? "top",
-        type: "flowEdge" as const,
+        type: "flowEdge",
         data: {
-          edgeType: "normal" as const,
+          edgeType: "normal",
           edgeLabel: null,
           comments: [],
         },
@@ -139,8 +142,8 @@ export function useFlowState(initialSchema: FlowChartSchema) {
           ...prev.edges,
           {
             id: newEdge.id,
-            source: connection.source,
-            target: connection.target,
+            source,
+            target,
             type: "normal",
             label: null,
             comments: [],

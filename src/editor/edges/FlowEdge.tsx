@@ -109,7 +109,7 @@ function FlowEdge({
     }
   }
 
-  let strokeColor = themeColors.arrow.default;
+  let strokeColor: string = themeColors.arrow.default;
   let strokeWidth = 1.2;
   let strokeDasharray: string | undefined;
   let markerEnd = "url(#arrow-default)";

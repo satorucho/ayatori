@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Toolbar from "../../src/editor/Toolbar.tsx";
 
 describe("Toolbar import validation feedback", () => {
-  const OriginalFileReader = global.FileReader;
+  const OriginalFileReader = globalThis.FileReader;
 
   class MockFileReader {
     public result: string | null = null;
@@ -17,12 +17,12 @@ describe("Toolbar import validation feedback", () => {
 
   beforeEach(() => {
     // @ts-expect-error test mock
-    global.FileReader = MockFileReader;
+    globalThis.FileReader = MockFileReader;
   });
 
   afterEach(() => {
     cleanup();
-    global.FileReader = OriginalFileReader;
+    globalThis.FileReader = OriginalFileReader;
     vi.clearAllMocks();
   });
 

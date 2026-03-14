@@ -1,13 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { hydrateSchema } from "../../src/schema/hydrate.ts";
 import { dehydrateSchema } from "../../src/schema/dehydrate.ts";
 import { schemaToYaml, yamlToSchema } from "../../src/schema/yaml.ts";
 import type { FlowChartSchema } from "../../src/types/schema.ts";
 
+const currentDir = dirname(fileURLToPath(import.meta.url));
+
 function loadSampleJson(filename: string): FlowChartSchema {
-  const path = resolve(__dirname, "../../public/sample-flows", filename);
+  const path = resolve(currentDir, "../../public/sample-flows", filename);
   return JSON.parse(readFileSync(path, "utf-8")) as FlowChartSchema;
 }
 
