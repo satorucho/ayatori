@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { exportToSVG } from "../../src/export/to-svg.ts";
 import { calculateLayout, computeAllSizes } from "../../src/layout/engine.ts";
-import { ARROW_GAP, LANE } from "../../src/layout/constants.ts";
+import { COLORS, LANE } from "../../src/layout/constants.ts";
 import type { FlowChartSchema, FlowNode } from "../../src/types/schema.ts";
 
 function getHalfSize(node: FlowNode, width: number, height: number) {
@@ -12,7 +12,7 @@ function getHalfSize(node: FlowNode, width: number, height: number) {
 }
 
 describe("exportToSVG", () => {
-  it("renders all lane headers on the same Y and uses configured header offset", async () => {
+  it("renders aligned lane headers and lane divider lines", async () => {
     const schema: FlowChartSchema = {
       schemaVersion: "1",
       meta: {
@@ -45,8 +45,7 @@ describe("exportToSVG", () => {
     const svg = exportToSVG({ ...schema, layout }, layout, sizes);
 
     const laneSection = svg
-      .split("<!-- ====== Lane Headers ====== -->")[1]
-      ?.split("<!-- ====== Nodes ====== -->")[0] ?? "";
+      .split("<!-- ====== Lane Headers ====== -->")[1] ?? "";
 
     const laneHeaderRegex = new RegExp(
       `<rect x="[^"]+" y="([^"]+)" width="[^"]+" height="${LANE.headerHeight}"`,
@@ -57,19 +56,20 @@ describe("exportToSVG", () => {
     expect(yValues.length).toBe(2);
     expect(yValues[1]).toBeCloseTo(yValues[0], 6);
 
-    let minNodeTop = Infinity;
-    for (const node of schema.nodes) {
-      const pos = layout.positions[node.id];
-      const size = sizes.get(node.id);
-      if (!pos || !size) continue;
-      const { halfH } = getHalfSize(node, size.width, size.height);
-      minNodeTop = Math.min(minNodeTop, pos.y - halfH);
-    }
+    const minNodeCenterY = Math.min(...schema.nodes.map((node) => layout.positions[node.id].y));
+    expect(yValues[0]).toBeCloseTo(minNodeCenterY - LANE.headerOffsetY, 6);
 
-    expect(yValues[0]).toBeCloseTo(minNodeTop - LANE.headerOffsetY, 6);
+    const dividerMatches = [...svg.matchAll(
+      new RegExp(
+        `<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)" stroke="${COLORS.divider}"[^>]*stroke-dasharray="8 4"`,
+        "g",
+      ),
+    )];
+    expect(dividerMatches.length).toBe(1);
+    expect(Number(dividerMatches[0][2])).toBeCloseTo(minNodeCenterY - LANE.headerOffsetY, 6);
   });
 
-  it("applies correct end-gap for vertical bottom-to-top arrows", () => {
+  it("connects vertical arrows exactly at node boundaries", () => {
     const schema: FlowChartSchema = {
       schemaVersion: "1",
       meta: {
@@ -107,17 +107,22 @@ describe("exportToSVG", () => {
     );
     expect(lineMatch).not.toBeNull();
 
+    const y1 = Number(lineMatch?.[2]);
     const y2 = Number(lineMatch?.[4]);
+    const source = schema.nodes.find((n) => n.id === "s")!;
+    const sourceSize = sizes.get("s")!;
+    const { halfH: sourceHalfH } = getHalfSize(source, sourceSize.width, sourceSize.height);
+    const sourceBottom = schema.layout!.positions.s.y + sourceHalfH;
     const target = schema.nodes.find((n) => n.id === "p")!;
     const targetSize = sizes.get("p")!;
     const { halfH } = getHalfSize(target, targetSize.width, targetSize.height);
     const targetTop = schema.layout!.positions.p.y - halfH;
-    const expectedY2 = targetTop - (ARROW_GAP.end + ARROW_GAP.marker);
 
-    expect(y2).toBeCloseTo(expectedY2, 6);
+    expect(y1).toBeCloseTo(sourceBottom, 6);
+    expect(y2).toBeCloseTo(targetTop, 6);
   });
 
-  it("applies correct end-gap for horizontal right-to-left arrows", () => {
+  it("connects horizontal arrows exactly at node boundaries", () => {
     const schema: FlowChartSchema = {
       schemaVersion: "1",
       meta: {
@@ -170,13 +175,64 @@ describe("exportToSVG", () => {
     );
     expect(lineMatch).not.toBeNull();
 
+    const x1 = Number(lineMatch?.[1]);
     const x2 = Number(lineMatch?.[3]);
+    const source = schema.nodes.find((n) => n.id === "d1")!;
+    const sourceSize = sizes.get("d1")!;
+    const { halfW: sourceHalfW } = getHalfSize(source, sourceSize.width, sourceSize.height);
+    const sourceRight = schema.layout!.positions.d1.x + sourceHalfW;
     const target = schema.nodes.find((n) => n.id === "p1")!;
     const targetSize = sizes.get("p1")!;
     const { halfW } = getHalfSize(target, targetSize.width, targetSize.height);
     const targetLeft = schema.layout!.positions.p1.x - halfW;
-    const expectedX2 = targetLeft - (ARROW_GAP.end + ARROW_GAP.marker);
 
-    expect(x2).toBeCloseTo(expectedX2, 6);
+    expect(x1).toBeCloseTo(sourceRight, 6);
+    expect(x2).toBeCloseTo(targetLeft, 6);
+  });
+
+  it("renders phase headers above lane overlays and edges", async () => {
+    const schema: FlowChartSchema = {
+      schemaVersion: "1",
+      meta: {
+        name: "overlay-order",
+        purpose: "test",
+        granularity: "business",
+        version: "2026-03-14",
+      },
+      lanes: [
+        { id: "lane-a", label: "管理者", order: 0 },
+        { id: "lane-b", label: "注文者", order: 1 },
+      ],
+      phases: [
+        { id: "phase-a", label: "Phase A", order: 0 },
+        { id: "phase-b", label: "Phase B", order: 1 },
+      ],
+      nodes: [
+        { id: "n1", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: "phase-a", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "n2", type: "process", label: "登録する", sublabel: null, lane: "lane-b", phase: "phase-a", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "n3", type: "process", label: "確認する", sublabel: null, lane: "lane-a", phase: "phase-b", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", type: "normal", label: null, comments: [] },
+        { id: "e2", source: "n2", target: "n3", type: "normal", label: null, comments: [] },
+      ],
+      layout: null,
+      designNotes: [],
+      openQuestions: [],
+    };
+
+    const layout = await calculateLayout(schema);
+    const sizes = computeAllSizes(schema);
+    const svg = exportToSVG({ ...schema, layout }, layout, sizes);
+
+    const edgesIndex = svg.indexOf("<!-- ====== Edges ====== -->");
+    const laneDividersIndex = svg.indexOf("<!-- ====== Lane Dividers ====== -->");
+    const laneHeadersIndex = svg.indexOf("<!-- ====== Lane Headers ====== -->");
+    const phaseHeadersIndex = svg.indexOf("<!-- ====== Phase Section Headers ====== -->");
+
+    expect(edgesIndex).toBeGreaterThan(-1);
+    expect(laneDividersIndex).toBeGreaterThan(edgesIndex);
+    expect(laneHeadersIndex).toBeGreaterThan(laneDividersIndex);
+    expect(phaseHeadersIndex).toBeGreaterThan(laneHeadersIndex);
   });
 });
