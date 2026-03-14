@@ -26,6 +26,11 @@ interface ToolbarProps {
   onNotify?: (notice: { type: "success" | "error"; message: string }) => void;
 }
 
+function withBase(path: string): string {
+  const normalized = path.replace(/^\/+/, "");
+  return `${import.meta.env.BASE_URL}${normalized}`;
+}
+
 type MenuItem =
   | {
       type: "action";
@@ -39,7 +44,7 @@ type MenuItem =
 function AyatoriIcon() {
   return (
     <img
-      src="/logo_sm.svg"
+      src={withBase("logo_sm.svg")}
       alt="Ayatori"
       width={22}
       height={22}

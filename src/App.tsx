@@ -3,6 +3,11 @@ import FlowEditor from "./editor/FlowEditor.tsx";
 import type { FlowChartSchema } from "./types/schema.ts";
 import { parseSchemaText } from "./schema/parse.ts";
 
+function withBase(path: string): string {
+  const normalized = path.replace(/^\/+/, "");
+  return `${import.meta.env.BASE_URL}${normalized}`;
+}
+
 const EMPTY_SCHEMA: FlowChartSchema = {
   schemaVersion: "1",
   meta: {
@@ -77,7 +82,7 @@ export default function App() {
   const handleLoadSample = useCallback(async (filename: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/sample-flows/${filename}`);
+      const res = await fetch(withBase(`sample-flows/${filename}`));
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -133,7 +138,7 @@ export default function App() {
       <div className="text-center space-y-6 max-w-md">
         <div className="flex flex-col items-center gap-3">
           <img
-            src="/logo.svg"
+            src={withBase("logo.svg")}
             alt="Ayatori"
             className="w-28 h-28 dark:invert"
           />
