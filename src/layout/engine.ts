@@ -248,9 +248,11 @@ export async function calculateLayout(
   alignNodesByLane(positions, schema, sizes);
   // 2. Resolve Y conflicts for nodes in the same lane at overlapping Y positions
   resolveYConflicts(positions, schema, sizes);
-  // 3. Position short branch nodes beside their decision parent
+  // 3. Enforce cross-lane phase ordering: all nodes in phase N must be above phase N+1
+  enforcePhaseOrdering(positions, schema, sizes);
+  // 4. Position short branch nodes beside their decision parent
   applyShortBranches(positions, schema, sizes);
-  // 4. Insert vertical gaps between phases for section headers
+  // 5. Insert vertical gaps between phases for section headers
   insertPhaseGaps(positions, schema, sizes);
 
   return {
@@ -391,6 +393,87 @@ function resolveYConflicts(
       node.lane,
       Math.max(laneBottoms.get(node.lane) ?? -Infinity, newBottom),
     );
+  }
+}
+
+/**
+ * Post-process: ensure that ALL nodes in phase N are above ALL nodes in
+ * phase N+1, across ALL lanes.  After resolveYConflicts, a shorter lane
+ * may have its phase-N+1 nodes interleaved with a longer lane's phase-N
+ * nodes.  This step pushes later-phase nodes down so that phase regions
+ * never overlap vertically.
+ */
+function enforcePhaseOrdering(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  sizes: Map<string, ShapeSize>,
+): void {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  if (sortedPhases.length <= 1) return;
+
+  const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
+
+  for (let i = 0; i < sortedPhases.length - 1; i++) {
+    const currentPhaseId = sortedPhases[i].id;
+    const nextPhaseId = sortedPhases[i + 1].id;
+
+    // Find the maximum bottom Y of ALL nodes in the current phase
+    let maxBottom = -Infinity;
+    for (const node of schema.nodes) {
+      if (node.phase !== currentPhaseId) continue;
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+      maxBottom = Math.max(maxBottom, pos.y + getNodeHalfHeight(node, size));
+    }
+
+    if (maxBottom === -Infinity) continue;
+
+    // Ensure all nodes in the next phase are below maxBottom + spacing
+    const minRequired = maxBottom + SPACING.M_VERTICAL;
+
+    for (const node of schema.nodes) {
+      if (node.phase !== nextPhaseId) continue;
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+
+      const halfH = getNodeHalfHeight(node, size);
+      const requiredY = minRequired + halfH;
+
+      if (pos.y < requiredY) {
+        // Need to shift this node and all subsequent same-lane nodes down
+        const delta = requiredY - pos.y;
+        shiftPhaseDown(positions, schema, sizes, i + 1, delta);
+        break; // Recompute after shift
+      }
+    }
+  }
+}
+
+/**
+ * Shift all nodes in phases >= phaseIndex down by delta.
+ */
+function shiftPhaseDown(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  _sizes: Map<string, ShapeSize>,
+  phaseIndex: number,
+  delta: number,
+): void {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  const phaseIds = new Set<string>();
+  for (let i = phaseIndex; i < sortedPhases.length; i++) {
+    phaseIds.add(sortedPhases[i].id);
+  }
+
+  for (const node of schema.nodes) {
+    if (node.phase !== null && phaseIds.has(node.phase)) {
+      const pos = positions[node.id];
+      if (pos) {
+        positions[node.id] = { ...pos, y: pos.y + delta };
+      }
+    }
   }
 }
 
