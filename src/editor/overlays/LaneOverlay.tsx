@@ -197,7 +197,7 @@ export default function LaneOverlay({
       if (!containerRect) return;
 
       const [tx, ty, z] = transform;
-      const hY = minY - 120;
+      const hY = minY - LANE.headerOffsetY;
       const sx = info.headerLeft * z + tx + containerRect.left;
       const sy = hY * z + ty + containerRect.top;
       const sw = info.headerWidth * z;
@@ -285,7 +285,7 @@ export default function LaneOverlay({
   if (lanes.length <= 1 || laneBoundaries.length === 0) return null;
 
   const [tx, ty, zoom] = transform;
-  const headerY = minY - 120;
+  const headerY = minY - LANE.headerOffsetY;
 
   return (
     <>

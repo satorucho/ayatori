@@ -90,6 +90,7 @@ export function exportToSVG(
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
+  let minNodeTop = Infinity;
 
   function expand(x: number, y: number, w = 0, h = 0) {
     minX = Math.min(minX, x);
@@ -104,6 +105,7 @@ export function exportToSVG(
     const size = sizes.get(node.id);
     if (!pos || !size) continue;
     const { halfW, halfH } = getHalfSize(node, size);
+    minNodeTop = Math.min(minNodeTop, pos.y - halfH);
     expand(pos.x - halfW, pos.y - halfH, halfW * 2, halfH * 2);
   }
 
@@ -163,6 +165,9 @@ export function exportToSVG(
 
   if (schema.lanes.length > 1) {
     parts.push(`<!-- ====== Lane Headers ====== -->`);
+    const laneHeaderY = Number.isFinite(minNodeTop)
+      ? minNodeTop - LANE.headerOffsetY
+      : minY - LANE.headerOffsetY;
     const sortedLanes = [...schema.lanes].sort((a, b) => a.order - b.order);
     for (let i = 0; i < sortedLanes.length; i++) {
       const lane = sortedLanes[i];
@@ -179,7 +184,7 @@ export function exportToSVG(
       const rightEdge = boundary.dividerX;
       const headerLeft = leftEdge + LANE.headerInset;
       const headerWidth = rightEdge - leftEdge - LANE.headerInset * 2;
-      const headerY = minY - 80;
+      const headerY = laneHeaderY;
 
       if (headerWidth <= 0) continue;
       expand(headerLeft, headerY, headerWidth, LANE.headerHeight);
@@ -287,7 +292,7 @@ export function exportToSVG(
 
     // Apply arrow gaps
     const srcPt = applyGap(src, sourceHandle, ARROW_GAP.start);
-    const tgtPt = applyGap(tgt, targetHandle, -(ARROW_GAP.end + ARROW_GAP.marker));
+    const tgtPt = applyGap(tgt, targetHandle, ARROW_GAP.end + ARROW_GAP.marker);
 
     // Style
     let strokeColor: string = COLORS.arrow.default;

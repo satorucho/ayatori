@@ -155,7 +155,8 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     }
 
     if (schema.lanes.length > 1) {
-      minY = Math.min(minY, minY - 120 - LANE.headerHeight);
+      const laneHeaderTop = minY - LANE.headerOffsetY;
+      minY = Math.min(minY, laneHeaderTop);
     }
     for (const pb of phaseBoundaries) {
       const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;

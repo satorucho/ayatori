@@ -73,6 +73,8 @@ export const LANE = {
   gapBetweenLanes: 80,
   /** レーンヘッダー高さ */
   headerHeight: 35,
+  /** レーンヘッダーの上方向オフセット（最上部ノード上端から） */
+  headerOffsetY: 120,
   /** 黒帯 rect の区切り線からの内側余白 */
   headerInset: 30,
   /** No→縦線のYes側最大右端からの距離 */
