@@ -6,10 +6,13 @@
 export const FONT_FAMILY = "'Noto Sans JP', sans-serif";
 
 export const FONT = {
-  title: { size: 24, weight: 700 },
-  laneHeader: { size: 20, weight: 700 },
-  nodeMain: { size: 16, weight: 600 },
-  nodeSub: { size: 12, weight: 400 },
+  title: { size: 19, weight: 700 },
+  laneHeader: { size: 10, weight: 700 },
+  nodeMain: { size: 13, weight: 600 },
+  nodeSub: { size: 10, weight: 400 },
+  edgeLabel: { size: 10, weight: 400 },
+  phase: { size: 11, weight: 600 },
+  commentBadge: { size: 9, weight: 400 },
 } as const;
 
 // ---- テキスト計算 ----
@@ -69,25 +72,21 @@ export const LANE = {
   /** レーン間余白 */
   gapBetweenLanes: 80,
   /** レーンヘッダー高さ */
-  headerHeight: 50,
+  headerHeight: 35,
   /** 黒帯 rect の区切り線からの内側余白 */
   headerInset: 30,
   /** No→縦線のYes側最大右端からの距離 */
   mergeLineOffset: 30,
 } as const;
 
-// ---- Phase帯 ----
+// ---- Phase（水平セクションヘッダー） ----
 export const PHASE = {
-  /** 左端X座標 */
-  x: 40,
-  /** 幅 */
-  width: 200,
-  /** 高さ */
-  height: 30,
-  /** テキスト左寄せX */
-  textX: 55,
-  /** Phase帯右端からフロー本体までの最小間隔 */
-  gapToFlow: 34,
+  /** ヘッダーバンドの高さ */
+  headerHeight: 26,
+  /** ヘッダーとノードの間のパディング */
+  headerPaddingY: 24,
+  /** ヘッダーバンドの左右マージン */
+  headerMarginX: 20,
 } as const;
 
 // ---- ダイヤモンド ----
@@ -120,7 +119,7 @@ export const COLUMN = {
   maxColumns: 3,
 } as const;
 
-// ---- カラーパレット ----
+// ---- カラーパレット（ライトモード） ----
 export const COLORS = {
   default: { fill: "#fff", stroke: "#222", text: "#222" },
   startEnd: { fill: "#f5f5f5", stroke: "#222", text: "#222" },
@@ -131,11 +130,35 @@ export const COLORS = {
   hypothesis: { fill: "#fff", stroke: "#aaa", text: "#888" },
   sub: { text: "#999" },
   laneHeader: { fill: "#222", text: "#fff" },
-  phase: { fill: "#f0f0f0", stroke: "#999", text: "#555" },
+  phase: { fill: "rgba(0,0,0,0.55)", stroke: "rgba(0,0,0,0.15)", text: "#fff" },
+  divider: "#ddd",
   arrow: {
     default: "#222",
     loop: "#888",
     orange: "#c87800",
     green: "#2a7a2a",
   },
+  edgeLabelBg: "#fff",
+} as const;
+
+// ---- カラーパレット（ダークモード） ----
+export const COLORS_DARK = {
+  default: { fill: "#23233a", stroke: "#8890a8", text: "#c8cee0" },
+  startEnd: { fill: "#2a2a42", stroke: "#8890a8", text: "#c8cee0" },
+  gray: { fill: "#2e2e46", stroke: "#8890a8", text: "#c8cee0" },
+  orange: { fill: "#332818", stroke: "#d49848", text: "#d49848" },
+  green: { fill: "#1c2e1c", stroke: "#58a858", text: "#58a858" },
+  "blue-ref": { fill: "#1c2040", stroke: "#5878d0", text: "#5878d0" },
+  hypothesis: { fill: "#23233a", stroke: "#585870", text: "#686880" },
+  sub: { text: "#686880" },
+  laneHeader: { fill: "#3a3a58", text: "#d0d4e0" },
+  phase: { fill: "rgba(180,190,220,0.18)", stroke: "rgba(180,190,220,0.08)", text: "#c8cee0" },
+  divider: "#3a3a52",
+  arrow: {
+    default: "#8890a8",
+    loop: "#585870",
+    orange: "#d49848",
+    green: "#58a858",
+  },
+  edgeLabelBg: "#1e1e32",
 } as const;

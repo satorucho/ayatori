@@ -11,6 +11,15 @@ body,
   margin: 0;
   padding: 0;
   font-family: "Noto Sans JP", sans-serif;
+  background-color: #fff;
+  color: #1f2937;
+}
+
+html.dark,
+html.dark body,
+html.dark #root {
+  background-color: #111827;
+  color: #e5e7eb;
 }
 
 /* React Flow handle styling */
@@ -21,6 +30,10 @@ body,
   border: 1.5px solid #fff !important;
   opacity: 0;
   transition: opacity 0.15s, transform 0.15s;
+}
+
+.dark .react-flow__handle {
+  border-color: #23233a !important;
 }
 
 .react-flow__node:hover .react-flow__handle,

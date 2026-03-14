@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
 import type { NodeStyle, Comment } from "../../types/schema.ts";
 
 export type StartEndNodeData = {
@@ -17,12 +18,13 @@ export type StartEndNodeData = {
 type StartEndNodeType = Node<StartEndNodeData, "startEnd">;
 
 function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
-  const { label, sublabel, nodeType, shapeWidth, shapeHeight } = data;
+  const { label, sublabel, shapeWidth, shapeHeight } = data;
   const rx = shapeWidth;
   const ry = shapeHeight;
   const width = rx * 2;
   const height = ry * 2;
-  const colors = COLORS.startEnd;
+  const themeColors = useThemeColors();
+  const colors = themeColors.startEnd;
 
   return (
     <div style={{ width, height, position: "relative" }}>
@@ -54,19 +56,19 @@ function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
               y={ry - 4}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize={16}
-              fontWeight={600}
+              fontSize={FONT.nodeMain.size}
+              fontWeight={FONT.nodeMain.weight}
               fill={colors.text}
             >
               {label}
             </text>
             <text
               x={rx}
-              y={ry + 14}
+              y={ry + FONT.nodeMain.size - 2}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize={12}
-              fill="#999"
+              fontSize={FONT.nodeSub.size}
+              fill={themeColors.sub.text}
             >
               {sublabel}
             </text>
@@ -77,8 +79,8 @@ function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
             y={ry}
             textAnchor="middle"
             dominantBaseline="central"
-            fontSize={16}
-            fontWeight={600}
+            fontSize={FONT.nodeMain.size}
+            fontWeight={FONT.nodeMain.weight}
             fill={colors.text}
           >
             {label}

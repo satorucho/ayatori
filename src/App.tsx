@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import FlowEditor from "./editor/FlowEditor.tsx";
 import type { FlowChartSchema } from "./types/schema.ts";
+import { hydrateSchema } from "./schema/hydrate.ts";
+import { yamlToSchema } from "./schema/yaml.ts";
 
 const EMPTY_SCHEMA: FlowChartSchema = {
   schemaVersion: "1",
@@ -67,8 +69,13 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch(`/sample-flows/${filename}`);
-      const data = await res.json();
-      setSchema(data);
+      if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+        const text = await res.text();
+        setSchema(yamlToSchema(text));
+      } else {
+        const data = await res.json();
+        setSchema(hydrateSchema(data as Record<string, unknown>));
+      }
     } catch (err) {
       console.error("Failed to load sample:", err);
     } finally {
@@ -79,17 +86,23 @@ export default function App() {
   const handleFileOpen = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json";
+    input.accept = ".json,.yaml,.yml";
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const data = JSON.parse(reader.result as string);
-          setSchema(data);
+          const text = reader.result as string;
+          const isYaml = file.name.endsWith(".yaml") || file.name.endsWith(".yml");
+          if (isYaml) {
+            setSchema(yamlToSchema(text));
+          } else {
+            const data = JSON.parse(text) as Record<string, unknown>;
+            setSchema(hydrateSchema(data));
+          }
         } catch (err) {
-          console.error("Invalid JSON:", err);
+          console.error("Invalid file:", err);
         }
       };
       reader.readAsText(file);
@@ -106,39 +119,39 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center space-y-6 max-w-md">
-        <h1 className="text-4xl font-bold text-gray-800">Ayatori</h1>
-        <p className="text-gray-500">
+        <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Ayatori</h1>
+        <p className="text-gray-500 dark:text-gray-400">
           業務フローチャートの双方向エディタ
         </p>
         <div className="space-y-3">
           <button
             onClick={handleNew}
-            className="w-full px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+            className="w-full px-6 py-3 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors font-medium"
           >
             新規フローを作成
           </button>
           <button
             onClick={handleFileOpen}
-            className="w-full px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            className="w-full px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
           >
-            JSONファイルを開く
+            ファイルを開く（JSON / YAML）
           </button>
           <div className="pt-2">
-            <p className="text-xs text-gray-400 mb-2">サンプル</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">サンプル</p>
             <div className="flex gap-2 justify-center">
               <button
                 onClick={() => handleLoadSample("simple-flow.json")}
                 disabled={loading}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 簡単な承認フロー
               </button>
               <button
                 onClick={() => handleLoadSample("asis-flow.json")}
                 disabled={loading}
-                className="px-4 py-2 text-sm bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 AsIs体験フロー
               </button>

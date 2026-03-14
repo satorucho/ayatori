@@ -1,52 +1,79 @@
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
-export function useUndoRedo<T>(
-  initial: T,
-  maxHistory = 50,
-): {
-  state: T;
-  setState: (newState: T) => void;
-  undo: () => void;
-  redo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-} {
+type SetStateAction<T> = T | ((prev: T) => T);
+
+export function useUndoRedo<T>(initial: T, maxHistory = 100) {
   const [state, setStateInternal] = useState<T>(initial);
+  const stateRef = useRef<T>(initial);
   const pastRef = useRef<string[]>([]);
   const futureRef = useRef<string[]>([]);
+  const [pastLen, setPastLen] = useState(0);
+  const [futureLen, setFutureLen] = useState(0);
 
   const setState = useCallback(
-    (newState: T) => {
-      const currentJson = JSON.stringify(state);
-      pastRef.current = [...pastRef.current, currentJson].slice(-maxHistory);
+    (action: SetStateAction<T>) => {
+      const prev = stateRef.current;
+      const next =
+        typeof action === "function"
+          ? (action as (prev: T) => T)(prev)
+          : action;
+      if (next === prev) return;
+
+      pastRef.current = [...pastRef.current, JSON.stringify(prev)].slice(
+        -maxHistory,
+      );
       futureRef.current = [];
-      setStateInternal(newState);
+      stateRef.current = next;
+      setStateInternal(next);
+      setPastLen(pastRef.current.length);
+      setFutureLen(0);
     },
-    [state, maxHistory],
+    [maxHistory],
   );
 
-  const undo = useCallback(() => {
-    if (pastRef.current.length === 0) return;
-    const prev = pastRef.current[pastRef.current.length - 1];
+  const undo = useCallback((): T | null => {
+    if (pastRef.current.length === 0) return null;
+    const prevJson = pastRef.current[pastRef.current.length - 1];
     pastRef.current = pastRef.current.slice(0, -1);
-    futureRef.current = [JSON.stringify(state), ...futureRef.current];
-    setStateInternal(JSON.parse(prev) as T);
-  }, [state]);
+    futureRef.current = [
+      JSON.stringify(stateRef.current),
+      ...futureRef.current,
+    ];
+    const restored = JSON.parse(prevJson) as T;
+    stateRef.current = restored;
+    setStateInternal(restored);
+    setPastLen(pastRef.current.length);
+    setFutureLen(futureRef.current.length);
+    return restored;
+  }, []);
 
-  const redo = useCallback(() => {
-    if (futureRef.current.length === 0) return;
-    const next = futureRef.current[0];
+  const redo = useCallback((): T | null => {
+    if (futureRef.current.length === 0) return null;
+    const nextJson = futureRef.current[0];
     futureRef.current = futureRef.current.slice(1);
-    pastRef.current = [...pastRef.current, JSON.stringify(state)];
-    setStateInternal(JSON.parse(next) as T);
-  }, [state]);
+    pastRef.current = [...pastRef.current, JSON.stringify(stateRef.current)];
+    const restored = JSON.parse(nextJson) as T;
+    stateRef.current = restored;
+    setStateInternal(restored);
+    setPastLen(pastRef.current.length);
+    setFutureLen(futureRef.current.length);
+    return restored;
+  }, []);
+
+  const resetHistory = useCallback(() => {
+    pastRef.current = [];
+    futureRef.current = [];
+    setPastLen(0);
+    setFutureLen(0);
+  }, []);
 
   return {
     state,
     setState,
     undo,
     redo,
-    canUndo: pastRef.current.length > 0,
-    canRedo: futureRef.current.length > 0,
+    canUndo: pastLen > 0,
+    canRedo: futureLen > 0,
+    resetHistory,
   };
 }

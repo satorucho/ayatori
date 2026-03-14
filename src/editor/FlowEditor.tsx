@@ -18,67 +18,73 @@ import { exportToPNG } from "../export/to-png.ts";
 import Sidebar from "./Sidebar.tsx";
 import LaneOverlay from "./overlays/LaneOverlay.tsx";
 import PhaseOverlay from "./overlays/PhaseOverlay.tsx";
+import { useTheme, useThemeColors } from "../theme/useTheme.ts";
+import { LayoutContext } from "./contexts/LayoutContext.ts";
+import { EditContext } from "./contexts/EditContext.ts";
 
 interface FlowEditorProps {
   initialSchema: FlowChartSchema;
 }
 
-const ARROW_DEFS = (
-  <svg style={{ position: "absolute", width: 0, height: 0 }}>
-    <defs>
-      <marker
-        id="arrow-default"
-        markerWidth="7"
-        markerHeight="5"
-        refX="7"
-        refY="2.5"
-        orient="auto"
-      >
-        <polygon points="0 0,7 2.5,0 5" fill="#222" />
-      </marker>
-      <marker
-        id="arrow-orange"
-        markerWidth="7"
-        markerHeight="5"
-        refX="7"
-        refY="2.5"
-        orient="auto"
-      >
-        <polygon points="0 0,7 2.5,0 5" fill="#c87800" />
-      </marker>
-      <marker
-        id="arrow-green"
-        markerWidth="7"
-        markerHeight="5"
-        refX="7"
-        refY="2.5"
-        orient="auto"
-      >
-        <polygon points="0 0,7 2.5,0 5" fill="#2a7a2a" />
-      </marker>
-      <marker
-        id="arrow-loop"
-        markerWidth="7"
-        markerHeight="5"
-        refX="7"
-        refY="2.5"
-        orient="auto"
-      >
-        <polygon points="0 0,7 2.5,0 5" fill="#888" />
-      </marker>
-      <marker
-        id="arrow-selected"
-        markerWidth="7"
-        markerHeight="5"
-        refX="7"
-        refY="2.5"
-        orient="auto"
-      >
-        <polygon points="0 0,7 2.5,0 5" fill="#3b82f6" />
-      </marker>
-    </defs>
-  </svg>
-);
+function ArrowDefs() {
+  const colors = useThemeColors();
+  return (
+    <svg style={{ position: "absolute", width: 0, height: 0 }}>
+      <defs>
+        <marker
+          id="arrow-default"
+          markerWidth="7"
+          markerHeight="5"
+          refX="7"
+          refY="2.5"
+          orient="auto"
+        >
+          <polygon points="0 0,7 2.5,0 5" fill={colors.arrow.default} />
+        </marker>
+        <marker
+          id="arrow-orange"
+          markerWidth="7"
+          markerHeight="5"
+          refX="7"
+          refY="2.5"
+          orient="auto"
+        >
+          <polygon points="0 0,7 2.5,0 5" fill={colors.arrow.orange} />
+        </marker>
+        <marker
+          id="arrow-green"
+          markerWidth="7"
+          markerHeight="5"
+          refX="7"
+          refY="2.5"
+          orient="auto"
+        >
+          <polygon points="0 0,7 2.5,0 5" fill={colors.arrow.green} />
+        </marker>
+        <marker
+          id="arrow-loop"
+          markerWidth="7"
+          markerHeight="5"
+          refX="7"
+          refY="2.5"
+          orient="auto"
+        >
+          <polygon points="0 0,7 2.5,0 5" fill={colors.arrow.loop} />
+        </marker>
+        <marker
+          id="arrow-selected"
+          markerWidth="7"
+          markerHeight="5"
+          refX="7"
+          refY="2.5"
+          orient="auto"
+        >
+          <polygon points="0 0,7 2.5,0 5" fill="#3b82f6" />
+        </marker>
+      </defs>
+    </svg>
+  );
+}
 
 function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const {
@@ -93,16 +99,37 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     updateSchema,
     runAutoLayout,
     exportJSON,
+    exportYAML,
     importJSON,
     addNode,
+    swapLanes,
+    addLane,
+    renameLane,
+    removeLane,
+    addPhase,
+    renamePhase,
+    removePhase,
+    swapPhases,
     sizes,
     laneBoundaries,
+    phaseBoundaries,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    resetHistory,
+    freeDrawMode,
+    setFreeDrawMode,
   } = useFlowState(initialSchema);
 
+  const { isDark } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const initialLayoutDone = useRef(false);
+
+  const fitViewOptions = useMemo(() => ({ padding: 0.15 }), []);
+  const layoutCtx = useMemo(() => ({ phaseBoundaries }), [phaseBoundaries]);
 
   const edgesWithReconnectable = useMemo(
     () =>
@@ -116,9 +143,30 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   useEffect(() => {
     if (!initialLayoutDone.current) {
       initialLayoutDone.current = true;
-      runAutoLayout();
+      runAutoLayout().then(() => resetHistory());
     }
-  }, [runAutoLayout]);
+  }, [runAutoLayout, resetHistory]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable);
+      if (isInput) return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
@@ -139,7 +187,79 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const handlePaneClick = useCallback(() => {
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
+    setEditingNode(null);
   }, []);
+
+  // --- Inline node label editing ---
+  const [editingNode, setEditingNode] = useState<{
+    id: string;
+    value: string;
+    rect: { x: number; y: number; w: number; h: number };
+  } | null>(null);
+  const editNodeRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, rfNode: { id: string }) => {
+      const node = schema.nodes.find((n) => n.id === rfNode.id);
+      if (!node) return;
+      const el = document.querySelector(
+        `.react-flow__node[data-id="${rfNode.id}"]`,
+      ) as HTMLElement | null;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setEditingNode({
+        id: rfNode.id,
+        value: node.label,
+        rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+      });
+      setTimeout(() => editNodeRef.current?.focus(), 0);
+    },
+    [schema.nodes],
+  );
+
+  const commitNodeEdit = useCallback(() => {
+    if (editingNode && editingNode.value.trim()) {
+      updateSchema((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === editingNode.id
+            ? { ...n, label: editingNode.value.trim() }
+            : n,
+        ),
+      }));
+    }
+    setEditingNode(null);
+  }, [editingNode, updateSchema]);
+
+  // --- EditContext for edge label inline editing ---
+  const updateNodeLabel = useCallback(
+    (nodeId: string, label: string) => {
+      updateSchema((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === nodeId ? { ...n, label } : n,
+        ),
+      }));
+    },
+    [updateSchema],
+  );
+
+  const updateEdgeLabel = useCallback(
+    (edgeId: string, label: string) => {
+      updateSchema((prev) => ({
+        ...prev,
+        edges: prev.edges.map((e) =>
+          e.id === edgeId ? { ...e, label: label || null } : e,
+        ),
+      }));
+    },
+    [updateSchema],
+  );
+
+  const editCtx = useMemo(
+    () => ({ updateNodeLabel, updateEdgeLabel }),
+    [updateNodeLabel, updateEdgeLabel],
+  );
 
   const downloadFile = useCallback(
     (content: string, filename: string, mimeType: string) => {
@@ -178,52 +298,104 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     URL.revokeObjectURL(url);
   }, [schema, sizes]);
 
-  const unresolvedCount = schema.nodes.reduce(
-    (count, n) => count + n.comments.filter((c) => !c.resolved).length,
-    0,
-  ) + schema.edges.reduce(
-    (count, e) => count + e.comments.filter((c) => !c.resolved).length,
-    0,
-  );
-
   return (
     <div className="h-full flex flex-col">
-      {ARROW_DEFS}
+      <ArrowDefs />
       <Toolbar
         onAutoLayout={runAutoLayout}
         onExportJSON={exportJSON}
+        onExportYAML={exportYAML}
         onImportJSON={importJSON}
         onExportSVG={handleExportSVG}
         onExportHTML={handleExportHTML}
         onExportPNG={handleExportPNG}
         onAddNode={addNode}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        freeDrawMode={freeDrawMode}
+        onToggleFreeDrawMode={() => setFreeDrawMode(!freeDrawMode)}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onAddLane={() => addLane()}
+        onAddPhase={() => addPhase()}
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 relative">
-          <ReactFlow
-            nodes={nodes}
-            edges={edgesWithReconnectable}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onReconnect={onReconnect}
-            onNodeDragStop={onNodeDragStop}
-            reconnectRadius={20}
-            connectionMode="loose"
-            onNodeClick={handleNodeClick}
-            onEdgeClick={handleEdgeClick}
-            onPaneClick={handlePaneClick}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            defaultEdgeOptions={{ type: "flowEdge" }}
-          >
-            <Background />
-            <Controls />
-            <MiniMap />
-            <LaneOverlay schema={schema} laneBoundaries={laneBoundaries} />
-            <PhaseOverlay schema={schema} sizes={sizes} />
-          </ReactFlow>
+          <EditContext.Provider value={editCtx}>
+            <LayoutContext.Provider value={layoutCtx}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edgesWithReconnectable}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onReconnect={onReconnect}
+                onNodeDragStop={onNodeDragStop}
+                reconnectRadius={20}
+                connectionMode="loose"
+                onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
+                onNodeDoubleClick={handleNodeDoubleClick}
+                onPaneClick={handlePaneClick}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                fitView
+                fitViewOptions={fitViewOptions}
+                defaultEdgeOptions={{ type: "flowEdge" }}
+                colorMode={isDark ? "dark" : "light"}
+              >
+                <Background />
+                <Controls fitViewOptions={fitViewOptions} />
+                <MiniMap />
+                <LaneOverlay
+                  schema={schema}
+                  laneBoundaries={laneBoundaries}
+                  onSwapLanes={swapLanes}
+                  onAddLane={addLane}
+                  onRenameLane={renameLane}
+                  onRemoveLane={removeLane}
+                />
+                <PhaseOverlay
+                  schema={schema}
+                  phaseBoundaries={phaseBoundaries}
+                  laneBoundaries={laneBoundaries}
+                  onAddPhase={addPhase}
+                  onRenamePhase={renamePhase}
+                  onRemovePhase={removePhase}
+                  onSwapPhases={swapPhases}
+                />
+              </ReactFlow>
+            </LayoutContext.Provider>
+          </EditContext.Provider>
+
+          {editingNode && (
+            <textarea
+              ref={editNodeRef}
+              className="fixed z-[9999] px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 outline-none text-center resize-none"
+              style={{
+                left: editingNode.rect.x,
+                top: editingNode.rect.y,
+                width: editingNode.rect.w,
+                height: editingNode.rect.h,
+              }}
+              value={editingNode.value}
+              onChange={(e) =>
+                setEditingNode((prev) =>
+                  prev ? { ...prev, value: e.target.value } : null,
+                )
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  commitNodeEdit();
+                }
+                if (e.key === "Escape") setEditingNode(null);
+              }}
+              onBlur={commitNodeEdit}
+            />
+          )}
         </div>
         {sidebarOpen && (
           <Sidebar
@@ -234,21 +406,6 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
             onClose={() => setSidebarOpen(false)}
           />
         )}
-      </div>
-      <div className="h-8 bg-gray-100 border-t border-gray-200 flex items-center px-4 text-xs text-gray-500 gap-4">
-        <span>ノード: {schema.nodes.length}</span>
-        <span>エッジ: {schema.edges.length}</span>
-        {unresolvedCount > 0 && (
-          <span className="text-orange-600">
-            未解決コメント: {unresolvedCount}
-          </span>
-        )}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="ml-auto text-gray-400 hover:text-gray-600"
-        >
-          {sidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}
-        </button>
       </div>
     </div>
   );

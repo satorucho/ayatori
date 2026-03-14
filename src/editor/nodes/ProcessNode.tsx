@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
 import type { NodeStyle, Comment } from "../../types/schema.ts";
 
 export type ProcessNodeData = {
@@ -15,21 +16,18 @@ export type ProcessNodeData = {
 
 type ProcessNodeType = Node<ProcessNodeData, "process">;
 
-const STYLE_MAP: Record<
-  string,
-  { fill: string; stroke: string; text: string }
-> = {
-  default: COLORS.default,
-  gray: COLORS.gray,
-  orange: COLORS.orange,
-  green: COLORS.green,
-  "blue-ref": COLORS["blue-ref"],
-  hypothesis: COLORS.hypothesis,
-};
-
 function ProcessNode({ data, selected }: NodeProps<ProcessNodeType>) {
   const { label, sublabel, nodeStyle, shapeWidth, shapeHeight } = data;
-  const colors = STYLE_MAP[nodeStyle] ?? COLORS.default;
+  const themeColors = useThemeColors();
+  const styleMap: Record<string, { fill: string; stroke: string; text: string }> = {
+    default: themeColors.default,
+    gray: themeColors.gray,
+    orange: themeColors.orange,
+    green: themeColors.green,
+    "blue-ref": themeColors["blue-ref"],
+    hypothesis: themeColors.hypothesis,
+  };
+  const colors = styleMap[nodeStyle] ?? themeColors.default;
   const isHypothesis = nodeStyle === "hypothesis";
 
   return (
@@ -52,8 +50,8 @@ function ProcessNode({ data, selected }: NodeProps<ProcessNodeType>) {
     >
       <div
         style={{
-          fontSize: 16,
-          fontWeight: 600,
+          fontSize: FONT.nodeMain.size,
+          fontWeight: FONT.nodeMain.weight,
           color: colors.text,
           textAlign: "center",
           lineHeight: 1.5,
@@ -65,8 +63,8 @@ function ProcessNode({ data, selected }: NodeProps<ProcessNodeType>) {
       {sublabel && (
         <div
           style={{
-            fontSize: 12,
-            color: "#999",
+            fontSize: FONT.nodeSub.size,
+            color: themeColors.sub.text,
             textAlign: "center",
             lineHeight: 1.5,
           }}

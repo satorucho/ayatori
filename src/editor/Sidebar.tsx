@@ -1,8 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type {
   FlowChartSchema,
   FlowNode,
   FlowEdge,
+  FlowMeta,
   NodeType,
   NodeStyle,
   EdgeType,
@@ -160,23 +161,23 @@ export default function Sidebar({
   );
 
   const inputClass =
-    "w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500";
+    "w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200";
   const selectClass =
-    "w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white";
-  const labelClass = "block text-xs font-medium text-gray-500 mb-1";
+    "w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200";
+  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1";
 
   return (
-    <div className="w-72 bg-white border-l border-gray-200 flex flex-col shrink-0 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+    <div className="w-72 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
         <div className="flex gap-1">
           <button
-            className={`px-3 py-1 text-xs rounded ${tab === "properties" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            className={`px-3 py-1 text-xs rounded ${tab === "properties" ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"}`}
             onClick={() => setTab("properties")}
           >
             プロパティ
           </button>
           <button
-            className={`px-3 py-1 text-xs rounded ${tab === "comments" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            className={`px-3 py-1 text-xs rounded ${tab === "comments" ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"}`}
             onClick={() => setTab("comments")}
           >
             コメント
@@ -184,7 +185,7 @@ export default function Sidebar({
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 text-lg"
+          className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-lg"
         >
           ×
         </button>
@@ -195,7 +196,7 @@ export default function Sidebar({
           <>
             {selectedNode && (
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   ノード: {selectedNode.id}
                 </h3>
                 <div>
@@ -297,7 +298,7 @@ export default function Sidebar({
 
             {selectedEdge && (
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   エッジ: {selectedEdge.id}
                 </h3>
                 <div>
@@ -370,9 +371,13 @@ export default function Sidebar({
             )}
 
             {!selectedNode && !selectedEdge && (
-              <div className="text-sm text-gray-400 text-center mt-8">
-                ノードまたはエッジを選択してください
-              </div>
+              <SchemaInfoPanel
+                schema={schema}
+                updateSchema={updateSchema}
+                inputClass={inputClass}
+                selectClass={selectClass}
+                labelClass={labelClass}
+              />
             )}
           </>
         )}
@@ -444,8 +449,8 @@ function CommentsPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">コメント</h3>
-        <label className="text-xs text-gray-500 flex items-center gap-1">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">コメント</h3>
+        <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
           <input
             type="checkbox"
             checked={showResolved}
@@ -456,24 +461,24 @@ function CommentsPanel({
       </div>
 
       {allComments.length === 0 && (
-        <div className="text-xs text-gray-400">コメントはありません</div>
+        <div className="text-xs text-gray-400 dark:text-gray-500">コメントはありません</div>
       )}
 
       {allComments.map((item) => (
         <div
           key={item.comment.id}
-          className={`p-2 rounded text-xs ${item.comment.resolved ? "bg-gray-50 opacity-60" : "bg-yellow-50 border border-yellow-200"}`}
+          className={`p-2 rounded text-xs ${item.comment.resolved ? "bg-gray-50 dark:bg-gray-800 opacity-60" : "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700"}`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="font-medium text-gray-600">
+            <span className="font-medium text-gray-600 dark:text-gray-400">
               {item.targetLabel}
             </span>
-            <span className="text-gray-400">{item.comment.author}</span>
+            <span className="text-gray-400 dark:text-gray-500">{item.comment.author}</span>
           </div>
-          <div className="text-gray-700 mb-1">{item.comment.text}</div>
+          <div className="text-gray-700 dark:text-gray-300 mb-1">{item.comment.text}</div>
           {!item.comment.resolved && (
             <button
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               onClick={() =>
                 resolveComment(
                   item.targetType,
@@ -489,9 +494,9 @@ function CommentsPanel({
       ))}
 
       {canAddComment && (
-        <div className="border-t border-gray-200 pt-2 space-y-2">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-2 space-y-2">
           <textarea
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+            className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-gray-200"
             rows={2}
             placeholder="コメントを追加..."
             value={newText}
@@ -509,6 +514,251 @@ function CommentsPanel({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- Schema info panel (shown when nothing is selected) ----
+
+const GRANULARITY_OPTIONS: { value: FlowMeta["granularity"]; label: string }[] = [
+  { value: "executive", label: "経営層向け" },
+  { value: "business", label: "業務担当者向け" },
+  { value: "engineer", label: "エンジニア向け" },
+];
+
+function SchemaInfoPanel({
+  schema,
+  updateSchema,
+  inputClass,
+  selectClass,
+  labelClass,
+}: {
+  schema: FlowChartSchema;
+  updateSchema: (updater: (prev: FlowChartSchema) => FlowChartSchema) => void;
+  inputClass: string;
+  selectClass: string;
+  labelClass: string;
+}) {
+  const updateMeta = useCallback(
+    (partial: Partial<FlowMeta>) => {
+      updateSchema((prev) => ({
+        ...prev,
+        meta: { ...prev.meta, ...partial },
+      }));
+    },
+    [updateSchema],
+  );
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+        フロー情報
+      </h3>
+
+      <div className="space-y-3">
+        <div>
+          <label className={labelClass}>フロー名称</label>
+          <input
+            className={inputClass}
+            value={schema.meta.name}
+            onChange={(e) => updateMeta({ name: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>サブタイトル</label>
+          <input
+            className={inputClass}
+            value={schema.meta.subtitle ?? ""}
+            onChange={(e) =>
+              updateMeta({ subtitle: e.target.value || undefined })
+            }
+            placeholder="概要説明（任意）"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>目的</label>
+          <textarea
+            className={inputClass}
+            rows={2}
+            value={schema.meta.purpose}
+            onChange={(e) => updateMeta({ purpose: e.target.value })}
+            placeholder="〜が完了するまで"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>粒度</label>
+          <select
+            className={selectClass}
+            value={schema.meta.granularity}
+            onChange={(e) =>
+              updateMeta({
+                granularity: e.target.value as FlowMeta["granularity"],
+              })
+            }
+          >
+            {GRANULARITY_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>バージョン</label>
+          <input
+            className={inputClass}
+            value={schema.meta.version}
+            onChange={(e) => updateMeta({ version: e.target.value })}
+            placeholder="YYYY-MM-DD"
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+        <EditableList
+          title="設計判断メモ"
+          items={schema.designNotes}
+          onChange={(items) =>
+            updateSchema((prev) => ({ ...prev, designNotes: items }))
+          }
+          placeholder="判断メモを追加…"
+          inputClass={inputClass}
+          labelClass={labelClass}
+        />
+      </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+        <EditableList
+          title="要確認事項"
+          items={schema.openQuestions}
+          onChange={(items) =>
+            updateSchema((prev) => ({ ...prev, openQuestions: items }))
+          }
+          placeholder="確認事項を追加…"
+          inputClass={inputClass}
+          labelClass={labelClass}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---- Editable string list ----
+
+function EditableList({
+  title,
+  items,
+  onChange,
+  placeholder,
+  inputClass,
+  labelClass,
+}: {
+  title: string;
+  items: string[];
+  onChange: (items: string[]) => void;
+  placeholder: string;
+  inputClass: string;
+  labelClass: string;
+}) {
+  const [newText, setNewText] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editingIdx !== null) editRef.current?.focus();
+  }, [editingIdx]);
+
+  const add = useCallback(() => {
+    if (!newText.trim()) return;
+    onChange([...items, newText.trim()]);
+    setNewText("");
+  }, [items, newText, onChange]);
+
+  const remove = useCallback(
+    (idx: number) => {
+      onChange(items.filter((_, i) => i !== idx));
+    },
+    [items, onChange],
+  );
+
+  const commitEdit = useCallback(() => {
+    if (editingIdx === null) return;
+    if (editValue.trim()) {
+      onChange(items.map((item, i) => (i === editingIdx ? editValue.trim() : item)));
+    }
+    setEditingIdx(null);
+  }, [editingIdx, editValue, items, onChange]);
+
+  return (
+    <div className="space-y-2">
+      <label className={labelClass}>{title}</label>
+
+      {items.length === 0 && (
+        <div className="text-xs text-gray-400 dark:text-gray-500">なし</div>
+      )}
+
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="group flex gap-1 items-start text-xs"
+        >
+          <span className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0">•</span>
+          {editingIdx === i ? (
+            <textarea
+              ref={editRef}
+              className={`${inputClass} text-xs flex-1`}
+              rows={2}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  commitEdit();
+                }
+                if (e.key === "Escape") setEditingIdx(null);
+              }}
+              onBlur={commitEdit}
+            />
+          ) : (
+            <span
+              className="flex-1 text-gray-700 dark:text-gray-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+              onDoubleClick={() => {
+                setEditingIdx(i);
+                setEditValue(item);
+              }}
+            >
+              {item}
+            </span>
+          )}
+          <button
+            className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-sm leading-none"
+            onClick={() => remove(i)}
+            title="削除"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+
+      <div className="flex gap-1">
+        <input
+          className={`${inputClass} text-xs flex-1`}
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          placeholder={placeholder}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+          }}
+        />
+        <button
+          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 shrink-0"
+          disabled={!newText.trim()}
+          onClick={add}
+        >
+          追加
+        </button>
+      </div>
     </div>
   );
 }

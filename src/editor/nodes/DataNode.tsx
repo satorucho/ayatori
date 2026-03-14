@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
 import type { Comment } from "../../types/schema.ts";
 
 export type DataNodeData = {
@@ -16,7 +17,8 @@ type DataNodeType = Node<DataNodeData, "data">;
 
 function DataNode({ data, selected }: NodeProps<DataNodeType>) {
   const { label, sublabel, shapeWidth, shapeHeight } = data;
-  const colors = COLORS.gray;
+  const themeColors = useThemeColors();
+  const colors = themeColors.gray;
 
   return (
     <div
@@ -38,8 +40,8 @@ function DataNode({ data, selected }: NodeProps<DataNodeType>) {
     >
       <div
         style={{
-          fontSize: 16,
-          fontWeight: 600,
+          fontSize: FONT.nodeMain.size,
+          fontWeight: FONT.nodeMain.weight,
           color: colors.text,
           textAlign: "center",
           lineHeight: 1.5,
@@ -50,7 +52,7 @@ function DataNode({ data, selected }: NodeProps<DataNodeType>) {
       </div>
       {sublabel && (
         <div
-          style={{ fontSize: 12, color: "#999", textAlign: "center", lineHeight: 1.5 }}
+          style={{ fontSize: FONT.nodeSub.size, color: themeColors.sub.text, textAlign: "center", lineHeight: 1.5 }}
         >
           {sublabel}
         </div>

@@ -22,7 +22,7 @@ export default function CommentBadge({ comments, onClick }: CommentBadgeProps) {
         borderRadius: "50%",
         background: "#ff4444",
         color: "#fff",
-        fontSize: 11,
+        fontSize: 9,
         fontWeight: 700,
         display: "flex",
         alignItems: "center",

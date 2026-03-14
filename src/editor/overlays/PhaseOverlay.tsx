@@ -1,174 +1,373 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "@xyflow/react";
 import type { FlowChartSchema } from "../../types/schema.ts";
-import type { ShapeSize } from "../../layout/sizing.ts";
-import { COLORS, PHASE, FONT_FAMILY, LANE } from "../../layout/constants.ts";
+import type { LaneBoundary, PhaseBoundary } from "../../layout/types.ts";
+import { FONT_FAMILY, FONT, PHASE, LANE } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
+import ContextMenu, { type ContextMenuEntry } from "../../components/ContextMenu.tsx";
 
 interface PhaseOverlayProps {
   schema: FlowChartSchema;
-  sizes: Map<string, ShapeSize>;
+  phaseBoundaries: PhaseBoundary[];
+  laneBoundaries: LaneBoundary[];
+  onAddPhase?: (afterPhaseId?: string) => void;
+  onRenamePhase?: (phaseId: string, label: string) => void;
+  onRemovePhase?: (phaseId: string, mergeIntoPhaseId: string | null) => void;
+  onSwapPhases?: (phaseIdA: string, phaseIdB: string) => void;
 }
 
-/** Get the half-height of a node for bounding-box calculations. */
-function getNodeHalfHeight(
-  nodeType: string,
-  size: ShapeSize,
-): number {
-  if (nodeType === "decision" || nodeType === "start" || nodeType === "end") {
-    return size.height;
-  }
-  return size.height / 2;
-}
-
-const PHASE_PADDING_Y = 20;
-
-export default function PhaseOverlay({ schema, sizes }: PhaseOverlayProps) {
+export default function PhaseOverlay({
+  schema,
+  phaseBoundaries,
+  laneBoundaries,
+  onAddPhase,
+  onRenamePhase,
+  onRemovePhase,
+  onSwapPhases,
+}: PhaseOverlayProps) {
   const transform = useStore((s) => s.transform);
   const width = useStore((s) => s.width);
   const height = useStore((s) => s.height);
+  const colors = useThemeColors();
 
-  const phases = useMemo(
-    () => [...schema.phases].sort((a, b) => a.order - b.order),
-    [schema.phases],
+  const xExtent = useMemo(() => {
+    if (laneBoundaries.length === 0) return null;
+    const left =
+      laneBoundaries[0].minLeft - LANE.marginLeft + LANE.headerInset;
+    const right =
+      laneBoundaries[laneBoundaries.length - 1].dividerX - LANE.headerInset;
+    return { left, right, width: right - left };
+  }, [laneBoundaries]);
+
+  // --- Drag state for reordering ---
+  const [dragInfo, setDragInfo] = useState<{
+    phaseId: string;
+    deltaY: number;
+  } | null>(null);
+  const dragStartYRef = useRef(0);
+  const dragPhaseIdRef = useRef<string | null>(null);
+
+  const onSwapPhasesRef = useRef(onSwapPhases);
+  onSwapPhasesRef.current = onSwapPhases;
+  const phaseBoundariesRef = useRef(phaseBoundaries);
+  phaseBoundariesRef.current = phaseBoundaries;
+
+  const dropTarget = useMemo(() => {
+    if (!dragInfo) return null;
+    const [, , z] = transform;
+    const dragged = phaseBoundaries.find((p) => p.phaseId === dragInfo.phaseId);
+    if (!dragged) return null;
+    const headerY = dragged.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+    const newCenterY = headerY + PHASE.headerHeight / 2 + dragInfo.deltaY / z;
+
+    for (const pb of phaseBoundaries) {
+      if (newCenterY <= pb.dividerY) return pb.phaseId;
+    }
+    return phaseBoundaries[phaseBoundaries.length - 1]?.phaseId ?? null;
+  }, [dragInfo, transform, phaseBoundaries]);
+
+  const dropTargetRef = useRef(dropTarget);
+  dropTargetRef.current = dropTarget;
+
+  const handlePointerDown = useCallback(
+    (phaseId: string, e: React.PointerEvent) => {
+      if (!onSwapPhases) return;
+      e.stopPropagation();
+      e.preventDefault();
+      dragStartYRef.current = e.clientY;
+      dragPhaseIdRef.current = phaseId;
+      setDragInfo({ phaseId, deltaY: 0 });
+    },
+    [onSwapPhases],
   );
 
-  const phaseBounds = useMemo(() => {
-    if (phases.length === 0 || !schema.layout) return [];
+  useEffect(() => {
+    if (!dragInfo) return;
 
-    return phases.map((phase) => {
-      const phaseNodes = schema.nodes.filter((n) => n.phase === phase.id);
-      if (phaseNodes.length === 0) return null;
+    const handleMove = (e: PointerEvent) => {
+      const delta = e.clientY - dragStartYRef.current;
+      setDragInfo((prev) => (prev ? { ...prev, deltaY: delta } : null));
+    };
 
-      let minY = Infinity;
-      let maxY = -Infinity;
+    const handleUp = () => {
+      const phaseId = dragPhaseIdRef.current;
+      const target = dropTargetRef.current;
+      if (phaseId && target && target !== phaseId) {
+        onSwapPhasesRef.current?.(phaseId, target);
+      }
+      dragPhaseIdRef.current = null;
+      setDragInfo(null);
+    };
 
-      for (const node of phaseNodes) {
-        const pos = schema.layout?.positions[node.id];
-        const size = sizes.get(node.id);
-        if (!pos || !size) continue;
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragInfo !== null]);
 
-        const halfH = getNodeHalfHeight(node.type, size);
-        minY = Math.min(minY, pos.y - halfH);
-        maxY = Math.max(maxY, pos.y + halfH);
+  // --- Context menu ---
+  const [ctxMenu, setCtxMenu] = useState<{
+    phaseId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const handleContextMenu = useCallback(
+    (phaseId: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCtxMenu({ phaseId, x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+
+  // --- Inline editing ---
+  const [editing, setEditing] = useState<{
+    phaseId: string;
+    value: string;
+    x: number;
+    y: number;
+    width: number;
+  } | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  const startEditing = useCallback(
+    (phaseId: string) => {
+      const phase = schema.phases.find((p) => p.id === phaseId);
+      const pb = phaseBoundaries.find((p) => p.phaseId === phaseId);
+      if (!phase || !pb || !xExtent) return;
+
+      const [tx, ty, z] = transform;
+      const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+      const sx = xExtent.left * z + tx;
+      const sy = headerY * z + ty;
+      const sw = xExtent.width * z;
+
+      setEditing({
+        phaseId,
+        value: phase.label,
+        x: sx + 8,
+        y: sy,
+        width: sw - 16,
+      });
+    },
+    [schema.phases, phaseBoundaries, xExtent, transform],
+  );
+
+  useEffect(() => {
+    if (editing) editInputRef.current?.focus();
+  }, [editing]);
+
+  const commitEdit = useCallback(() => {
+    if (editing && editing.value.trim() && onRenamePhase) {
+      onRenamePhase(editing.phaseId, editing.value.trim());
+    }
+    setEditing(null);
+  }, [editing, onRenamePhase]);
+
+  const handleDoubleClick = useCallback(
+    (phaseId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      startEditing(phaseId);
+    },
+    [startEditing],
+  );
+
+  const buildMenuItems = useCallback(
+    (phaseId: string): ContextMenuEntry[] => {
+      const sorted = [...schema.phases].sort((a, b) => a.order - b.order);
+      const idx = sorted.findIndex((p) => p.id === phaseId);
+      const items: ContextMenuEntry[] = [
+        {
+          label: "ラベルを変更…",
+          onClick: () => startEditing(phaseId),
+        },
+        { type: "divider" },
+        {
+          label: "上に追加",
+          onClick: () => {
+            const prev = sorted[idx - 1];
+            onAddPhase?.(prev?.id);
+          },
+        },
+        {
+          label: "下に追加",
+          onClick: () => onAddPhase?.(phaseId),
+        },
+      ];
+
+      if (sorted.length > 1) {
+        items.push({ type: "divider" });
+        {
+          const prev = sorted[idx - 1];
+          const next = sorted[idx + 1];
+          if (prev) {
+            items.push({
+              label: `上に移動`,
+              onClick: () => onSwapPhases?.(phaseId, prev.id),
+            });
+          }
+          if (next) {
+            items.push({
+              label: `下に移動`,
+              onClick: () => onSwapPhases?.(phaseId, next.id),
+            });
+          }
+        }
+        items.push({ type: "divider" });
+        const others = sorted.filter((p) => p.id !== phaseId);
+        for (const other of others) {
+          items.push({
+            label: `「${other.label}」に統合`,
+            onClick: () => onRemovePhase?.(phaseId, other.id),
+          });
+        }
+        items.push({
+          label: "フェーズを解除（ノード残す）",
+          danger: true,
+          onClick: () => onRemovePhase?.(phaseId, null),
+        });
+      } else {
+        items.push({ type: "divider" });
+        items.push({
+          label: "フェーズを解除（ノード残す）",
+          danger: true,
+          onClick: () => onRemovePhase?.(phaseId, null),
+        });
       }
 
-      if (minY === Infinity) return null;
+      return items;
+    },
+    [schema.phases, onAddPhase, onRemovePhase, onSwapPhases, startEditing],
+  );
 
-      return {
-        phaseId: phase.id,
-        label: phase.label,
-        top: minY - PHASE_PADDING_Y,
-        bottom: maxY + PHASE_PADDING_Y,
-      };
-    }).filter(Boolean) as { phaseId: string; label: string; top: number; bottom: number }[];
-  }, [phases, schema.nodes, schema.layout, sizes]);
-
-  if (phases.length === 0 || phaseBounds.length === 0) return null;
+  if (
+    schema.phases.length === 0 ||
+    phaseBoundaries.length === 0 ||
+    !xExtent
+  )
+    return null;
 
   const [tx, ty, zoom] = transform;
-  const phaseX = LANE.marginLeft;
 
   return (
-    <svg
-      style={{
-        position: "absolute",
-        inset: 0,
-        width,
-        height,
-        pointerEvents: "none",
-        zIndex: 0,
-      }}
-    >
-      <g transform={`translate(${tx}, ${ty}) scale(${zoom})`}>
-        {phaseBounds.map((bounds) => {
-          const rectHeight = bounds.bottom - bounds.top;
+    <>
+      <svg
+        style={{
+          position: "absolute",
+          inset: 0,
+          width,
+          height,
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
+        <g transform={`translate(${tx}, ${ty}) scale(${zoom})`}>
+          {phaseBoundaries.map((bounds, i) => {
+            const headerY =
+              bounds.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+            const bandLeft = xExtent.left;
+            const bandWidth = xExtent.width;
+            const isDragging = dragInfo?.phaseId === bounds.phaseId;
+            const isDropTarget =
+              dragInfo !== null &&
+              dragInfo.phaseId !== bounds.phaseId &&
+              dropTarget === bounds.phaseId;
+            const offsetY = isDragging ? dragInfo.deltaY / zoom : 0;
+            const isEditing = editing?.phaseId === bounds.phaseId;
 
-          return (
-            <g key={bounds.phaseId}>
-              <rect
-                x={phaseX}
-                y={bounds.top}
-                width={PHASE.width}
-                height={rectHeight}
-                rx={3}
-                fill={COLORS.phase.fill}
-                stroke={COLORS.phase.stroke}
-                strokeWidth={1}
-              />
-              <text
-                x={phaseX + 15}
-                y={bounds.top + rectHeight / 2}
-                dominantBaseline="central"
-                fill={COLORS.phase.text}
-                fontSize={14}
-                fontWeight={600}
-                fontFamily={FONT_FAMILY}
+            return (
+              <g
+                key={bounds.phaseId}
+                transform={isDragging ? `translate(0, ${offsetY})` : undefined}
+                opacity={isDragging ? 0.75 : 1}
               >
-                {wrapPhaseLabel(bounds.label, PHASE.width - 30).map(
-                  (line, i, arr) => (
-                    <tspan
-                      key={i}
-                      x={phaseX + 15}
-                      dy={i === 0 ? -(arr.length - 1) * 9 : 18}
-                    >
-                      {line}
-                    </tspan>
-                  ),
+                <rect
+                  x={bandLeft}
+                  y={headerY}
+                  width={bandWidth}
+                  height={PHASE.headerHeight}
+                  rx={3}
+                  fill={isDropTarget ? "#3b82f6" : colors.phase.fill}
+                  stroke={isDropTarget ? "#3b82f6" : colors.phase.stroke}
+                  strokeWidth={1}
+                  style={{
+                    pointerEvents: "all",
+                    cursor: onSwapPhases ? "grab" : "default",
+                  }}
+                  onPointerDown={(e) => handlePointerDown(bounds.phaseId, e)}
+                  onContextMenu={(e) => handleContextMenu(bounds.phaseId, e)}
+                  onDoubleClick={(e) => handleDoubleClick(bounds.phaseId, e)}
+                />
+                {!isEditing && (
+                  <text
+                    x={bandLeft + 12}
+                    y={headerY + PHASE.headerHeight / 2}
+                    dominantBaseline="central"
+                    fill={colors.phase.text}
+                    fontSize={FONT.phase.size}
+                    fontWeight={FONT.phase.weight}
+                    fontFamily={FONT_FAMILY}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    {bounds.label}
+                  </text>
                 )}
-              </text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
+
+                {i < phaseBoundaries.length - 1 && (
+                  <line
+                    x1={bandLeft}
+                    y1={bounds.dividerY}
+                    x2={bandLeft + bandWidth}
+                    y2={bounds.dividerY}
+                    stroke={colors.divider}
+                    strokeWidth={1 / zoom}
+                    strokeDasharray={`${8 / zoom} ${4 / zoom}`}
+                  />
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={buildMenuItems(ctxMenu.phaseId)}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {editing &&
+        createPortal(
+          <input
+            ref={editInputRef}
+            className="fixed z-[9999] px-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 outline-none"
+            style={{
+              left: editing.x,
+              top: editing.y,
+              width: editing.width,
+              height: PHASE.headerHeight * transform[2],
+            }}
+            value={editing.value}
+            onChange={(e) =>
+              setEditing((prev) => (prev ? { ...prev, value: e.target.value } : null))
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitEdit();
+              if (e.key === "Escape") setEditing(null);
+            }}
+            onBlur={commitEdit}
+          />,
+          document.body,
+        )}
+    </>
   );
-}
-
-/**
- * Simple line-wrapping for phase labels.
- * Breaks at punctuation marks (：, (, /, etc.) when the line would exceed maxWidth.
- */
-function wrapPhaseLabel(label: string, maxWidthPx: number): string[] {
-  // Rough character width estimate: ~9px per CJK char, ~6px per ASCII
-  const estimateWidth = (s: string) => {
-    let w = 0;
-    for (const ch of s) {
-      w += ch.charCodeAt(0) > 0x7f ? 9 : 6;
-    }
-    return w;
-  };
-
-  if (estimateWidth(label) <= maxWidthPx) return [label];
-
-  // Try to break at common break points
-  const breakChars = ["：", "（", "(", "/", "・"];
-  let bestBreak = -1;
-  const chars = [...label];
-
-  for (let i = 1; i < chars.length; i++) {
-    const left = chars.slice(0, i).join("");
-    if (estimateWidth(left) > maxWidthPx) break;
-
-    if (breakChars.includes(chars[i])) {
-      bestBreak = i;
-    } else if (breakChars.includes(chars[i - 1]) && chars[i - 1] !== "/") {
-      bestBreak = i;
-    }
-  }
-
-  if (bestBreak === -1) {
-    // Break at the last position that fits
-    for (let i = chars.length - 1; i > 0; i--) {
-      if (estimateWidth(chars.slice(0, i).join("")) <= maxWidthPx) {
-        bestBreak = i;
-        break;
-      }
-    }
-  }
-
-  if (bestBreak <= 0) return [label];
-
-  const line1 = chars.slice(0, bestBreak).join("");
-  const line2 = chars.slice(bestBreak).join("");
-  return [line1, line2];
 }

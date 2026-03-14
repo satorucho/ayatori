@@ -1,11 +1,15 @@
-import { memo } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import {
   BaseEdge,
   getSmoothStepPath,
   EdgeLabelRenderer,
 } from "@xyflow/react";
 import type { EdgeProps, Edge } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT, PHASE } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
+import { useLayoutContext } from "../contexts/LayoutContext.ts";
+import { useEditContext } from "../contexts/EditContext.ts";
+import type { PhaseBoundary } from "../../layout/types.ts";
 import type { EdgeType, Comment } from "../../types/schema.ts";
 
 export type FlowEdgeData = {
@@ -17,6 +21,26 @@ export type FlowEdgeData = {
 type FlowEdgeType = Edge<FlowEdgeData, "flowEdge">;
 
 const SELECTED_COLOR = "#3b82f6";
+const HEADER_MARGIN = 10;
+
+/**
+ * Check if a Y coordinate overlaps any phase header band.
+ * Returns an adjusted Y (above the header) if overlap, otherwise null.
+ */
+function avoidPhaseHeaders(
+  midY: number,
+  phaseBoundaries: PhaseBoundary[],
+): number | null {
+  for (const pb of phaseBoundaries) {
+    const headerTop = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+    const headerBottom = headerTop + PHASE.headerHeight;
+
+    if (midY >= headerTop - HEADER_MARGIN && midY <= headerBottom + HEADER_MARGIN) {
+      return headerTop - HEADER_MARGIN;
+    }
+  }
+  return null;
+}
 
 function FlowEdge({
   id,
@@ -31,8 +55,33 @@ function FlowEdge({
   selected,
 }: EdgeProps<FlowEdgeType>) {
   const edgeType = data?.edgeType ?? "normal";
+  const themeColors = useThemeColors();
+  const { phaseBoundaries } = useLayoutContext();
+  const { updateEdgeLabel } = useEditContext();
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const editRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingLabel) editRef.current?.focus();
+  }, [editingLabel]);
+
+  const commitLabelEdit = useCallback(() => {
+    updateEdgeLabel(id, editValue.trim());
+    setEditingLabel(false);
+  }, [id, editValue, updateEdgeLabel]);
+
+  const handleLabelDoubleClick = useCallback(() => {
+    setEditValue(data?.edgeLabel ?? "");
+    setEditingLabel(true);
+  }, [data?.edgeLabel]);
+
+  let edgePath: string;
+  let labelX: number;
+  let labelY: number;
+
+  const [defaultPath, defaultLabelX, defaultLabelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -42,7 +91,24 @@ function FlowEdge({
     borderRadius: 0,
   });
 
-  let strokeColor = COLORS.arrow.default;
+  edgePath = defaultPath;
+  labelX = defaultLabelX;
+  labelY = defaultLabelY;
+
+  // For cross-lane edges (different X), check if the horizontal segment
+  // overlaps with a phase header and reroute if so.
+  if (Math.abs(sourceX - targetX) > 5 && phaseBoundaries.length > 0) {
+    const naturalMidY = (sourceY + targetY) / 2;
+    const adjustedY = avoidPhaseHeaders(naturalMidY, phaseBoundaries);
+
+    if (adjustedY !== null) {
+      edgePath = `M ${sourceX} ${sourceY} L ${sourceX} ${adjustedY} L ${targetX} ${adjustedY} L ${targetX} ${targetY}`;
+      labelX = (sourceX + targetX) / 2;
+      labelY = adjustedY;
+    }
+  }
+
+  let strokeColor = themeColors.arrow.default;
   let strokeWidth = 1.2;
   let strokeDasharray: string | undefined;
   let markerEnd = "url(#arrow-default)";
@@ -51,24 +117,24 @@ function FlowEdge({
     case "normal":
     case "yes":
     case "no":
-      strokeColor = COLORS.arrow.default;
+      strokeColor = themeColors.arrow.default;
       strokeWidth = 1.2;
       markerEnd = "url(#arrow-default)";
       break;
     case "loop":
-      strokeColor = COLORS.arrow.loop;
+      strokeColor = themeColors.arrow.loop;
       strokeWidth = 1;
       strokeDasharray = "4,2";
       markerEnd = "url(#arrow-loop)";
       break;
     case "hypothesis":
-      strokeColor = "#aaa";
+      strokeColor = themeColors.hypothesis.stroke;
       strokeWidth = 1;
       strokeDasharray = "4,2";
       markerEnd = "url(#arrow-default)";
       break;
     case "merge":
-      strokeColor = COLORS.arrow.default;
+      strokeColor = themeColors.arrow.default;
       strokeWidth = 1;
       markerEnd = "";
       break;
@@ -104,24 +170,49 @@ function FlowEdge({
         }}
         markerEnd={markerEnd}
       />
-      {data?.edgeLabel && (
+      {(data?.edgeLabel || editingLabel) && (
         <EdgeLabelRenderer>
           <div
             style={{
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 12,
-              color: selected ? SELECTED_COLOR : "#999",
+              fontSize: FONT.edgeLabel.size,
+              color: selected ? SELECTED_COLOR : themeColors.sub.text,
               fontWeight: selected ? 700 : 400,
               pointerEvents: "all",
-              background: "white",
+              background: themeColors.edgeLabelBg,
               padding: "1px 4px",
               borderRadius: 2,
-              border: selected ? `1px solid ${SELECTED_COLOR}` : "none",
+              border: selected || editingLabel
+                ? `1px solid ${editingLabel ? "#3b82f6" : SELECTED_COLOR}`
+                : "none",
             }}
             className="nodrag nopan"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleLabelDoubleClick();
+            }}
           >
-            {data.edgeLabel}
+            {editingLabel ? (
+              <input
+                ref={editRef}
+                className="bg-transparent outline-none text-center"
+                style={{
+                  fontSize: FONT.edgeLabel.size,
+                  color: "inherit",
+                  width: Math.max(40, editValue.length * 8 + 16),
+                }}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitLabelEdit();
+                  if (e.key === "Escape") setEditingLabel(false);
+                }}
+                onBlur={commitLabelEdit}
+              />
+            ) : (
+              data?.edgeLabel
+            )}
           </div>
         </EdgeLabelRenderer>
       )}

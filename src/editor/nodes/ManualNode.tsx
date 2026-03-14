@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
 import type { Comment } from "../../types/schema.ts";
 
 export type ManualNodeData = {
@@ -16,7 +17,8 @@ type ManualNodeType = Node<ManualNodeData, "manual">;
 
 function ManualNode({ data, selected }: NodeProps<ManualNodeType>) {
   const { label, sublabel, shapeWidth, shapeHeight } = data;
-  const colors = COLORS.orange;
+  const themeColors = useThemeColors();
+  const colors = themeColors.orange;
 
   return (
     <div
@@ -38,8 +40,8 @@ function ManualNode({ data, selected }: NodeProps<ManualNodeType>) {
     >
       <div
         style={{
-          fontSize: 16,
-          fontWeight: 600,
+          fontSize: FONT.nodeMain.size,
+          fontWeight: FONT.nodeMain.weight,
           color: colors.text,
           textAlign: "center",
           lineHeight: 1.5,
@@ -51,7 +53,7 @@ function ManualNode({ data, selected }: NodeProps<ManualNodeType>) {
       {sublabel && (
         <div
           style={{
-            fontSize: 12,
+            fontSize: FONT.nodeSub.size,
             color: colors.text,
             textAlign: "center",
             lineHeight: 1.5,

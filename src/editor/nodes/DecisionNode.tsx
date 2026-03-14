@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { COLORS } from "../../layout/constants.ts";
+import { FONT } from "../../layout/constants.ts";
+import { useThemeColors } from "../../theme/useTheme.ts";
 import type { Comment, DecisionMeta } from "../../types/schema.ts";
 
 export type DecisionNodeData = {
@@ -19,7 +20,8 @@ function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
   const { label, shapeWidth: W, shapeHeight: H } = data;
   const width = W * 2;
   const height = H * 2;
-  const colors = COLORS.default;
+  const themeColors = useThemeColors();
+  const colors = themeColors.default;
 
   const lines = label.split("\n");
   const pad = 4;
@@ -47,8 +49,8 @@ function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
             y={H}
             textAnchor="middle"
             dominantBaseline="central"
-            fontSize={16}
-            fontWeight={600}
+            fontSize={FONT.nodeMain.size}
+            fontWeight={FONT.nodeMain.weight}
             fill={colors.text}
           >
             {lines[0]}
@@ -58,11 +60,11 @@ function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
             <text
               key={i}
               x={W}
-              y={H + (i - (lines.length - 1) / 2) * 20}
+              y={H + (i - (lines.length - 1) / 2) * (FONT.nodeMain.size * 1.25)}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize={16}
-              fontWeight={600}
+              fontSize={FONT.nodeMain.size}
+              fontWeight={FONT.nodeMain.weight}
               fill={colors.text}
             >
               {line}

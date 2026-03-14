@@ -9,7 +9,7 @@ import type {
 import { measureNodeText, calculateShapeSize, unifyWidthsInColumn } from "./sizing.ts";
 import type { ShapeSize } from "./sizing.ts";
 import { SPACING, LANE, PHASE } from "./constants.ts";
-import type { LaneBoundary } from "./types.ts";
+import type { LaneBoundary, PhaseBoundary } from "./types.ts";
 
 export interface LayoutOptions {
   force?: boolean;
@@ -210,6 +210,8 @@ export async function calculateLayout(
   resolveYConflicts(positions, schema, sizes);
   // 3. Position short branch nodes beside their decision parent
   applyShortBranches(positions, schema, sizes);
+  // 4. Insert vertical gaps between phases for section headers
+  insertPhaseGaps(positions, schema, sizes);
 
   return {
     positions,
@@ -219,10 +221,6 @@ export async function calculateLayout(
 
 /**
  * Post-process: align nodes within each lane to a single CX per lane.
- * Follows style-guide §8-2:
- *   First lane CX = phaseOffset + marginLeft + maxHalfWidth
- *   Next  lane CX = prevLaneMaxRight + gapBetweenLanes + maxHalfWidth
- *
  * Short-branch nodes are excluded (handled by applyShortBranches).
  */
 function alignNodesByLane(
@@ -238,9 +236,6 @@ function alignNodesByLane(
       shortBranchIds.add(edge.target);
     }
   }
-
-  // If phases exist, add horizontal offset for the phase column
-  const phaseOffset = schema.phases.length > 0 ? PHASE.width + PHASE.gapToFlow : 0;
 
   let prevMaxRight = 0;
 
@@ -266,7 +261,7 @@ function alignNodesByLane(
 
     const cx =
       prevMaxRight === 0
-        ? phaseOffset + LANE.marginLeft + maxHalfWidth
+        ? LANE.marginLeft + maxHalfWidth
         : prevMaxRight + LANE.gapBetweenLanes + maxHalfWidth;
 
     for (const nodeId of laneNodeIds) {
@@ -441,6 +436,114 @@ export function calculateLaneDividers(
   if (boundaries.length > 0) {
     boundaries[boundaries.length - 1].dividerX =
       boundaries[boundaries.length - 1].maxRight + LANE.marginRight;
+  }
+
+  return boundaries;
+}
+
+/**
+ * Post-process: insert vertical gaps between phases to make room for
+ * horizontal section header bands.  All nodes whose Y center is below a
+ * phase boundary are pushed down by one header-height increment per
+ * boundary they sit below.
+ */
+function insertPhaseGaps(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  sizes: Map<string, ShapeSize>,
+): void {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  if (sortedPhases.length <= 1) return;
+
+  const boundaryYs: number[] = [];
+
+  for (let i = 0; i < sortedPhases.length - 1; i++) {
+    const currentNodes = schema.nodes.filter(
+      (n) => n.phase === sortedPhases[i].id,
+    );
+    const nextNodes = schema.nodes.filter(
+      (n) => n.phase === sortedPhases[i + 1].id,
+    );
+
+    let maxBottom = -Infinity;
+    let minTop = Infinity;
+
+    for (const node of currentNodes) {
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+      maxBottom = Math.max(maxBottom, pos.y + getNodeHalfHeight(node, size));
+    }
+
+    for (const node of nextNodes) {
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+      minTop = Math.min(minTop, pos.y - getNodeHalfHeight(node, size));
+    }
+
+    if (maxBottom !== -Infinity && minTop !== Infinity) {
+      boundaryYs.push((maxBottom + minTop) / 2);
+    }
+  }
+
+  const gap = PHASE.headerHeight + PHASE.headerPaddingY * 2;
+
+  for (const nodeId of Object.keys(positions)) {
+    const pos = positions[nodeId];
+    let shift = 0;
+    for (const by of boundaryYs) {
+      if (pos.y > by) shift += gap;
+    }
+    if (shift > 0) {
+      positions[nodeId] = { ...positions[nodeId], y: pos.y + shift };
+    }
+  }
+}
+
+export function calculatePhaseDividers(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  sizes: Map<string, ShapeSize>,
+): PhaseBoundary[] {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  if (sortedPhases.length === 0) return [];
+
+  const boundaries: PhaseBoundary[] = [];
+
+  for (const phase of sortedPhases) {
+    const phaseNodes = schema.nodes.filter((n) => n.phase === phase.id);
+    let minTop = Infinity;
+    let maxBottom = -Infinity;
+
+    for (const node of phaseNodes) {
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+
+      const halfH = getNodeHalfHeight(node, size);
+      minTop = Math.min(minTop, pos.y - halfH);
+      maxBottom = Math.max(maxBottom, pos.y + halfH);
+    }
+
+    if (minTop === Infinity) continue;
+
+    boundaries.push({
+      phaseId: phase.id,
+      label: phase.label,
+      minTop,
+      maxBottom,
+      dividerY: 0,
+    });
+  }
+
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    boundaries[i].dividerY =
+      (boundaries[i].maxBottom + boundaries[i + 1].minTop) / 2;
+  }
+  if (boundaries.length > 0) {
+    boundaries[boundaries.length - 1].dividerY =
+      boundaries[boundaries.length - 1].maxBottom + LANE.marginBottom;
   }
 
   return boundaries;

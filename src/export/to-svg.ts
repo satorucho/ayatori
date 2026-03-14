@@ -1,7 +1,24 @@
 import type { FlowChartSchema, FlowLayout, FlowNode } from "../types/schema.ts";
 import type { ShapeSize } from "../layout/sizing.ts";
+import type { PhaseBoundary } from "../layout/types.ts";
 import { COLORS, FONT_FAMILY, ARROW_GAP, LANE, FONT, PHASE } from "../layout/constants.ts";
-import { calculateLaneDividers } from "../layout/engine.ts";
+import { calculateLaneDividers, calculatePhaseDividers } from "../layout/engine.ts";
+
+const HEADER_MARGIN = 10;
+
+function avoidPhaseHeaders(
+  midY: number,
+  phaseBounds: PhaseBoundary[],
+): number | null {
+  for (const pb of phaseBounds) {
+    const headerTop = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+    const headerBottom = headerTop + PHASE.headerHeight;
+    if (midY >= headerTop - HEADER_MARGIN && midY <= headerBottom + HEADER_MARGIN) {
+      return headerTop - HEADER_MARGIN;
+    }
+  }
+  return null;
+}
 
 function getNodeColors(node: FlowNode) {
   if (node.type === "start" || node.type === "end") return COLORS.startEnd;
@@ -30,6 +47,13 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function getHalfSize(node: FlowNode, size: ShapeSize) {
+  if (node.type === "decision" || node.type === "start" || node.type === "end") {
+    return { halfW: size.width, halfH: size.height };
+  }
+  return { halfW: size.width / 2, halfH: size.height / 2 };
+}
+
 export function exportToSVG(
   schema: FlowChartSchema,
   layout: FlowLayout,
@@ -37,88 +61,81 @@ export function exportToSVG(
 ): string {
   const parts: string[] = [];
 
-  let maxRight = 0;
-  let maxBottom = 0;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
 
-  // Calculate bounds
+  function expand(x: number, y: number, w = 0, h = 0) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  }
+
+  // Pre-compute node bounds
   for (const node of schema.nodes) {
     const pos = layout.positions[node.id];
     const size = sizes.get(node.id);
     if (!pos || !size) continue;
-
-    let halfW: number, halfH: number;
-    if (node.type === "decision" || node.type === "start" || node.type === "end") {
-      halfW = size.width;
-      halfH = size.height;
-    } else {
-      halfW = size.width / 2;
-      halfH = size.height / 2;
-    }
-
-    maxRight = Math.max(maxRight, pos.x + halfW);
-    maxBottom = Math.max(maxBottom, pos.y + halfH);
+    const { halfW, halfH } = getHalfSize(node, size);
+    expand(pos.x - halfW, pos.y - halfH, halfW * 2, halfH * 2);
   }
-
-  const svgWidth = Math.ceil((maxRight + LANE.marginRight) / 10) * 10;
-  const svgHeight = Math.ceil((maxBottom + LANE.marginBottom) / 10) * 10;
 
   // Defs
   parts.push(`<defs>`);
   parts.push(
     `  <marker id="a" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">`,
   );
-  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="#222"/>`);
+  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="${COLORS.arrow.default}"/>`);
+  parts.push(`  </marker>`);
+  parts.push(
+    `  <marker id="a-orange" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">`,
+  );
+  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="${COLORS.arrow.orange}"/>`);
+  parts.push(`  </marker>`);
+  parts.push(
+    `  <marker id="a-green" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">`,
+  );
+  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="${COLORS.arrow.green}"/>`);
   parts.push(`  </marker>`);
   parts.push(
     `  <marker id="aloop" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">`,
   );
-  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="#888"/>`);
+  parts.push(`    <polygon points="0 0,7 2.5,0 5" fill="${COLORS.arrow.loop}"/>`);
   parts.push(`  </marker>`);
   parts.push(`</defs>`);
 
-  // Phase bands
-  if (schema.phases.length > 0) {
-    parts.push(`<!-- ====== Phase Bands ====== -->`);
-    const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
-    const phasePadding = 20;
+  // Lane headers (computed first for X extent)
+  const boundaries = calculateLaneDividers(layout.positions, schema, sizes);
+  const phaseBounds = schema.phases.length > 0
+    ? calculatePhaseDividers(layout.positions, schema, sizes)
+    : [];
 
-    for (const phase of sortedPhases) {
-      const phaseNodes = schema.nodes.filter((n) => n.phase === phase.id);
-      if (phaseNodes.length === 0) continue;
+  // Phase section headers (horizontal bands)
+  if (phaseBounds.length > 0) {
+    parts.push(`<!-- ====== Phase Section Headers ====== -->`);
 
-      let minY = Infinity;
-      let maxY = -Infinity;
+    let bandLeft = LANE.marginLeft;
+    let bandRight = maxX;
+    if (boundaries.length > 0) {
+      bandLeft = boundaries[0].minLeft - LANE.marginLeft + LANE.headerInset;
+      bandRight = boundaries[boundaries.length - 1].dividerX - LANE.headerInset;
+    }
+    const bandWidth = bandRight - bandLeft;
 
-      for (const pn of phaseNodes) {
-        const pos = layout.positions[pn.id];
-        const size = sizes.get(pn.id);
-        if (!pos || !size) continue;
-
-        const halfH =
-          pn.type === "decision" || pn.type === "start" || pn.type === "end"
-            ? size.height
-            : size.height / 2;
-        minY = Math.min(minY, pos.y - halfH);
-        maxY = Math.max(maxY, pos.y + halfH);
-      }
-
-      if (minY === Infinity) continue;
-
-      const bandTop = minY - phasePadding;
-      const bandHeight = maxY - minY + phasePadding * 2;
-      const bandX = LANE.marginLeft;
-
+    for (const pb of phaseBounds) {
+      const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+      expand(bandLeft, headerY, bandWidth, PHASE.headerHeight);
       parts.push(
-        `<rect x="${bandX}" y="${bandTop}" width="${PHASE.width}" height="${bandHeight}" rx="3" fill="${COLORS.phase.fill}" stroke="${COLORS.phase.stroke}" stroke-width="1"/>`,
+        `<rect x="${bandLeft}" y="${headerY}" width="${bandWidth}" height="${PHASE.headerHeight}" rx="3" fill="${COLORS.phase.fill}" stroke="${COLORS.phase.stroke}" stroke-width="1"/>`,
       );
       parts.push(
-        `<text x="${bandX + 15}" y="${bandTop + bandHeight / 2 + 5}" font-size="14" font-weight="600" fill="${COLORS.phase.text}">${escapeXml(phase.label)}</text>`,
+        `<text x="${bandLeft + 12}" y="${headerY + PHASE.headerHeight / 2 + 1}" dominant-baseline="central" font-size="${FONT.phase.size}" font-weight="${FONT.phase.weight}" fill="${COLORS.phase.text}">${escapeXml(pb.label)}</text>`,
       );
     }
   }
 
-  // Lane headers
-  const boundaries = calculateLaneDividers(layout.positions, schema, sizes);
   if (schema.lanes.length > 1) {
     parts.push(`<!-- ====== Lane Headers ====== -->`);
     const sortedLanes = [...schema.lanes].sort((a, b) => a.order - b.order);
@@ -130,12 +147,24 @@ export function exportToSVG(
       const boundary = boundaries.find((b) => b.laneId === lane.id);
       if (!boundary) continue;
 
-      const cx = (boundary.minLeft + boundary.maxRight) / 2;
+      const leftEdge =
+        i === 0
+          ? boundary.minLeft - LANE.marginLeft
+          : (boundaries[i - 1]?.dividerX ?? boundary.minLeft);
+      const rightEdge = boundary.dividerX;
+      const headerLeft = leftEdge + LANE.headerInset;
+      const headerWidth = rightEdge - leftEdge - LANE.headerInset * 2;
+      const headerY = minY - 80;
+
+      if (headerWidth <= 0) continue;
+      expand(headerLeft, headerY, headerWidth, LANE.headerHeight);
+
+      const cx = headerLeft + headerWidth / 2;
       parts.push(
-        `<rect x="${boundary.minLeft - LANE.headerInset}" y="${LANE.marginTop}" width="${boundary.maxRight - boundary.minLeft + LANE.headerInset * 2}" height="${LANE.headerHeight}" rx="3" fill="${COLORS.laneHeader.fill}"/>`,
+        `<rect x="${headerLeft}" y="${headerY}" width="${headerWidth}" height="${LANE.headerHeight}" rx="3" fill="${COLORS.laneHeader.fill}"/>`,
       );
       parts.push(
-        `<text x="${cx}" y="${LANE.marginTop + 32}" text-anchor="middle" font-size="${FONT.laneHeader.size}" font-weight="${FONT.laneHeader.weight}" fill="${COLORS.laneHeader.text}">${escapeXml(lane.label)}</text>`,
+        `<text x="${cx}" y="${headerY + LANE.headerHeight / 2}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.laneHeader.size}" font-weight="${FONT.laneHeader.weight}" fill="${COLORS.laneHeader.text}">${escapeXml(lane.label)}</text>`,
       );
     }
   }
@@ -157,9 +186,18 @@ export function exportToSVG(
       parts.push(
         `<ellipse cx="${cx}" cy="${cy}" rx="${size.width}" ry="${size.height}" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1.5"${dashAttr}/>`,
       );
-      parts.push(
-        `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="16" font-weight="600" fill="${colors.text}">${escapeXml(node.label)}</text>`,
-      );
+      if (node.sublabel) {
+        parts.push(
+          `<text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(node.label)}</text>`,
+        );
+        parts.push(
+          `<text x="${cx}" y="${cy + (FONT.nodeMain.size - 2)}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeSub.size}" fill="${COLORS.sub.text}">${escapeXml(node.sublabel)}</text>`,
+        );
+      } else {
+        parts.push(
+          `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(node.label)}</text>`,
+        );
+      }
     } else if (node.type === "decision") {
       const W = size.width;
       const H = size.height;
@@ -170,13 +208,13 @@ export function exportToSVG(
       const lines = node.label.split("\n");
       if (lines.length === 1) {
         parts.push(
-          `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="16" font-weight="600" fill="${colors.text}">${escapeXml(lines[0])}</text>`,
+          `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(lines[0])}</text>`,
         );
       } else {
         lines.forEach((line, idx) => {
-          const lineY = cy + (idx - (lines.length - 1) / 2) * 20;
+          const lineY = cy + (idx - (lines.length - 1) / 2) * (FONT.nodeMain.size * 1.25);
           parts.push(
-            `<text x="${cx}" y="${lineY + 5}" text-anchor="middle" font-size="16" font-weight="600" fill="${colors.text}">${escapeXml(line)}</text>`,
+            `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(line)}</text>`,
           );
         });
       }
@@ -191,20 +229,20 @@ export function exportToSVG(
 
       if (node.sublabel) {
         parts.push(
-          `<text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="16" font-weight="600" fill="${colors.text}">${escapeXml(node.label)}</text>`,
+          `<text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(node.label)}</text>`,
         );
         parts.push(
-          `<text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="12" fill="#999">${escapeXml(node.sublabel)}</text>`,
+          `<text x="${cx}" y="${cy + (FONT.nodeMain.size - 2)}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeSub.size}" fill="${COLORS.sub.text}">${escapeXml(node.sublabel)}</text>`,
         );
       } else {
         parts.push(
-          `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="16" font-weight="600" fill="${colors.text}">${escapeXml(node.label)}</text>`,
+          `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(node.label)}</text>`,
         );
       }
     }
   }
 
-  // Edges
+  // Edges — all orthogonal (right-angle) routing
   parts.push(`<!-- ====== Edges ====== -->`);
   for (const edge of schema.edges) {
     const srcPos = layout.positions[edge.source];
@@ -215,13 +253,13 @@ export function exportToSVG(
     const tgtNode = schema.nodes.find((n) => n.id === edge.target);
     if (!srcPos || !tgtPos || !srcSize || !tgtSize || !srcNode || !tgtNode) continue;
 
-    let strokeColor = "#222";
+    let strokeColor = COLORS.arrow.default;
     let strokeWidth = 1.2;
     let dash = "";
     let markerEnd = 'marker-end="url(#a)"';
 
     if (edge.type === "loop") {
-      strokeColor = "#888";
+      strokeColor = COLORS.arrow.loop;
       strokeWidth = 1;
       dash = ' stroke-dasharray="4,2"';
       markerEnd = 'marker-end="url(#aloop)"';
@@ -234,53 +272,57 @@ export function exportToSVG(
       markerEnd = "";
     }
 
-    // Determine connection direction
-    const isHorizontal =
+    const { halfW: srcHW, halfH: srcHH } = getHalfSize(srcNode, srcSize);
+    const { halfW: tgtHW, halfH: tgtHH } = getHalfSize(tgtNode, tgtSize);
+
+    const dx = tgtPos.x - srcPos.x;
+    const dy = tgtPos.y - srcPos.y;
+
+    // Determine if primarily horizontal or vertical routing
+    const useHorizontal =
       edge.type === "no" ||
-      Math.abs(srcPos.x - tgtPos.x) > Math.abs(srcPos.y - tgtPos.y) * 2;
+      (Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dy) < srcHH + tgtHH);
 
-    if (isHorizontal) {
-      const srcRight =
-        srcNode.type === "decision"
-          ? srcPos.x + srcSize.width
-          : srcPos.x + srcSize.width / 2;
-      const tgtLeft =
-        tgtNode.type === "decision"
-          ? tgtPos.x - tgtSize.width
-          : tgtPos.x - tgtSize.width / 2;
+    const attrs = `stroke="${strokeColor}" stroke-width="${strokeWidth}"${dash} ${markerEnd}`;
 
-      const x1 = srcRight + ARROW_GAP.start;
-      const x2 = tgtLeft - ARROW_GAP.end - ARROW_GAP.marker;
-      const y = srcPos.y;
+    if (useHorizontal) {
+      const goRight = dx > 0;
+      const x1 = goRight
+        ? srcPos.x + srcHW + ARROW_GAP.start
+        : srcPos.x - srcHW - ARROW_GAP.start;
+      const x2 = goRight
+        ? tgtPos.x - tgtHW - ARROW_GAP.end - ARROW_GAP.marker
+        : tgtPos.x + tgtHW + ARROW_GAP.end + ARROW_GAP.marker;
+      const y1 = srcPos.y;
+      const y2 = tgtPos.y;
 
-      parts.push(
-        `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${tgtPos.y}" stroke="${strokeColor}" stroke-width="${strokeWidth}"${dash} ${markerEnd}/>`,
-      );
-    } else {
-      const srcBottom =
-        srcNode.type === "decision"
-          ? srcPos.y + srcSize.height
-          : srcNode.type === "start" || srcNode.type === "end"
-            ? srcPos.y + srcSize.height
-            : srcPos.y + srcSize.height / 2;
-      const tgtTop =
-        tgtNode.type === "decision"
-          ? tgtPos.y - tgtSize.height
-          : tgtNode.type === "start" || tgtNode.type === "end"
-            ? tgtPos.y - tgtSize.height
-            : tgtPos.y - tgtSize.height / 2;
-
-      const y1 = srcBottom + ARROW_GAP.start;
-      const y2 = tgtTop - ARROW_GAP.end - ARROW_GAP.marker;
-
-      if (Math.abs(srcPos.x - tgtPos.x) < 5) {
-        parts.push(
-          `<line x1="${srcPos.x}" y1="${y1}" x2="${tgtPos.x}" y2="${y2}" stroke="${strokeColor}" stroke-width="${strokeWidth}"${dash} ${markerEnd}/>`,
-        );
+      if (Math.abs(y1 - y2) < 1) {
+        parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${attrs}/>`);
       } else {
-        const midY = (y1 + y2) / 2;
+        const midX = (x1 + x2) / 2;
         parts.push(
-          `<polyline points="${srcPos.x},${y1} ${srcPos.x},${midY} ${tgtPos.x},${midY} ${tgtPos.x},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}"${dash} ${markerEnd}/>`,
+          `<polyline points="${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}" fill="none" ${attrs}/>`,
+        );
+      }
+    } else {
+      const goDown = dy >= 0;
+      const y1 = goDown
+        ? srcPos.y + srcHH + ARROW_GAP.start
+        : srcPos.y - srcHH - ARROW_GAP.start;
+      const y2 = goDown
+        ? tgtPos.y - tgtHH - ARROW_GAP.end - ARROW_GAP.marker
+        : tgtPos.y + tgtHH + ARROW_GAP.end + ARROW_GAP.marker;
+      const x1 = srcPos.x;
+      const x2 = tgtPos.x;
+
+      if (Math.abs(x1 - x2) < 1) {
+        parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${attrs}/>`);
+      } else {
+        let midY = (y1 + y2) / 2;
+        const adjusted = avoidPhaseHeaders(midY, phaseBounds);
+        if (adjusted !== null) midY = adjusted;
+        parts.push(
+          `<polyline points="${x1},${y1} ${x1},${midY} ${x2},${midY} ${x2},${y2}" fill="none" ${attrs}/>`,
         );
       }
     }
@@ -294,7 +336,7 @@ export function exportToSVG(
             ? srcPos.y + srcSize.height
             : srcPos.y + srcSize.height / 2) + 15;
         parts.push(
-          `<text x="${labelX}" y="${labelY}" font-size="12" fill="#999">${escapeXml(edge.label)}</text>`,
+          `<text x="${labelX}" y="${labelY}" font-size="${FONT.edgeLabel.size}" fill="${COLORS.sub.text}">${escapeXml(edge.label)}</text>`,
         );
       } else if (edge.type === "no") {
         const labelX =
@@ -303,14 +345,21 @@ export function exportToSVG(
             : srcPos.x + srcSize.width / 2) + 10;
         const labelY = srcPos.y - 7;
         parts.push(
-          `<text x="${labelX}" y="${labelY}" font-size="12" fill="#999">${escapeXml(edge.label)}</text>`,
+          `<text x="${labelX}" y="${labelY}" font-size="${FONT.edgeLabel.size}" fill="${COLORS.sub.text}">${escapeXml(edge.label)}</text>`,
         );
       }
     }
   }
 
+  // Compute final viewBox with padding
+  const padding = 20;
+  const vx = Math.floor(minX - padding);
+  const vy = Math.floor(minY - padding);
+  const vw = Math.ceil(maxX - vx + padding);
+  const vh = Math.ceil(maxY - vy + padding);
+
   const svg = [
-    `<svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="${svgWidth}" height="${svgHeight}" font-family="${FONT_FAMILY}" xmlns="http://www.w3.org/2000/svg">`,
+    `<svg viewBox="${vx} ${vy} ${vw} ${vh}" width="${vw}" height="${vh}" font-family="${FONT_FAMILY}" xmlns="http://www.w3.org/2000/svg">`,
     ...parts,
     `</svg>`,
   ].join("\n");
