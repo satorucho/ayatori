@@ -554,6 +554,15 @@ function SchemaInfoPanel({
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
         フロー情報
       </h3>
+      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded p-2 leading-relaxed">
+        ヒント: ノードはダブルクリックでラベル編集できます。ショートカット
+        <span className="font-medium"> ⌘/Ctrl+S </span>
+        で保存、
+        <span className="font-medium"> ⌘/Ctrl+O </span>
+        で読込、
+        <span className="font-medium"> ⌘/Ctrl+L </span>
+        で自動レイアウトを実行できます。
+      </div>
 
       <div className="space-y-3">
         <div>

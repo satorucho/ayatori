@@ -23,8 +23,6 @@ import "@xyflow/react/dist/style.css";
 import type { FlowChartSchema, FlowLayout } from "./types/schema.ts";
 import { yamlToSchema, schemaToYaml } from "./schema/yaml.ts";
 import { computeAllSizes, calculateLayout, calculateLaneDividers, calculatePhaseDividers } from "./layout/engine.ts";
-import { resolveHandles } from "./layout/edge-routing.ts";
-import type { ShapeSize } from "./layout/sizing.ts";
 import type { LaneBoundary, PhaseBoundary } from "./layout/types.ts";
 import { nodeTypes } from "./editor/nodes/index.ts";
 import { edgeTypes } from "./editor/edges/index.ts";
@@ -33,6 +31,7 @@ import { LayoutContext } from "./editor/contexts/LayoutContext.ts";
 import { EditContext } from "./editor/contexts/EditContext.ts";
 import LaneOverlay from "./editor/overlays/LaneOverlay.tsx";
 import PhaseOverlay from "./editor/overlays/PhaseOverlay.tsx";
+import { schemaToReactFlowEdges, schemaToReactFlowNodes } from "./editor/adapters/flow-adapter.ts";
 
 export interface EmbedApi {
   setYaml: (yaml: string) => void;
@@ -66,63 +65,6 @@ function ArrowDefs() {
   );
 }
 
-// ---- Schema ↔ RF conversion ----
-function schemaNodeTypeToRFType(type: string): string {
-  if (type === "start" || type === "end") return "startEnd";
-  return type;
-}
-
-function schemaToRFNodes(
-  schema: FlowChartSchema, layout: FlowLayout, sizes: Map<string, ShapeSize>,
-): Node[] {
-  return schema.nodes.map((node) => {
-    const pos = layout.positions[node.id] ?? { x: 0, y: 0 };
-    const size = sizes.get(node.id);
-    let nodeW: number, nodeH: number;
-    if (node.type === "decision" || node.type === "start" || node.type === "end") {
-      nodeW = (size?.width ?? 50) * 2;
-      nodeH = (size?.height ?? 50) * 2;
-    } else {
-      nodeW = size?.width ?? 200;
-      nodeH = size?.height ?? 40;
-    }
-    return {
-      id: node.id,
-      type: schemaNodeTypeToRFType(node.type),
-      position: { x: pos.x - nodeW / 2, y: pos.y - nodeH / 2 },
-      data: {
-        label: node.label,
-        sublabel: node.sublabel,
-        nodeStyle: node.style,
-        nodeType: node.type,
-        comments: node.comments,
-        decisionMeta: node.decisionMeta,
-        shapeWidth: size?.width ?? 50,
-        shapeHeight: size?.height ?? 50,
-      },
-    };
-  });
-}
-
-function schemaToRFEdges(schema: FlowChartSchema, layout: FlowLayout): Edge[] {
-  return schema.edges.map((edge) => {
-    const { sourceHandle, targetHandle } = resolveHandles(edge, schema, layout);
-    return {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      sourceHandle,
-      targetHandle,
-      type: "flowEdge",
-      data: {
-        edgeType: edge.type,
-        edgeLabel: edge.label,
-        comments: edge.comments,
-      },
-    };
-  });
-}
-
 // ---- Inner component (needs ReactFlowProvider) ----
 function EmbedInner({
   initialYaml,
@@ -138,8 +80,8 @@ function EmbedInner({
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundary[]>([]);
   const [showYaml, setShowYaml] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nodes, setNodes] = useNodesState([]);
-  const [edges, setEdges] = useEdgesState([]);
+  const [nodes, setNodes] = useNodesState<Node>([]);
+  const [edges, setEdges] = useEdgesState<Edge>([]);
   const { fitBounds, getNodes } = useReactFlow();
   const initializedRef = useRef(false);
 
@@ -156,8 +98,8 @@ function EmbedInner({
     try {
       const newLayout = await calculateLayout(s);
       const newSizes = computeAllSizes(s);
-      const rfNodes = schemaToRFNodes(s, newLayout, newSizes);
-      const rfEdges = schemaToRFEdges(s, newLayout);
+      const rfNodes = schemaToReactFlowNodes(s, newLayout, newSizes);
+      const rfEdges = schemaToReactFlowEdges(s, newLayout);
       setSchema({ ...s, layout: newLayout });
       setLayoutState(newLayout);
       setNodes(rfNodes);

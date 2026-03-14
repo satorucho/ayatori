@@ -189,6 +189,19 @@ export default function Toolbar({
 
   const close = useCallback(() => setOpenMenu(null), []);
 
+  const runAutoLayoutWithNotice = useCallback(() => {
+    void onAutoLayout()
+      .then(() => {
+        onNotify?.({ type: "success", message: "自動レイアウトを実行しました" });
+      })
+      .catch((err) => {
+        onNotify?.({
+          type: "error",
+          message: `自動レイアウトに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      });
+  }, [onAutoLayout, onNotify]);
+
   const toggle = useCallback(
     (name: string) => setOpenMenu((prev) => (prev === name ? null : name)),
     [],
@@ -226,6 +239,7 @@ export default function Toolbar({
           {
             type: "action" as const,
             label: "YAMLで保存（コンパクト）",
+            shortcut: "⌘⇧S",
             onClick: () => {
               handleSaveYAML();
               close();
@@ -308,9 +322,10 @@ export default function Toolbar({
     {
       type: "action",
       label: "自動レイアウト",
+      shortcut: "⌘L",
       disabled: !freeDrawMode,
       onClick: () => {
-        onAutoLayout();
+        runAutoLayoutWithNotice();
         close();
       },
     },
@@ -433,6 +448,57 @@ export default function Toolbar({
         },
       ]
     : [];
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (isInput) return;
+
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (!isMeta) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "o") {
+        e.preventDefault();
+        fileInputRef.current?.click();
+        return;
+      }
+      if (key === "s") {
+        e.preventDefault();
+        if (e.shiftKey && onExportYAML) {
+          handleSaveYAML();
+        } else {
+          handleSaveJSON();
+        }
+        return;
+      }
+      if (key === "l") {
+        e.preventDefault();
+        if (freeDrawMode) {
+          runAutoLayoutWithNotice();
+        }
+        return;
+      }
+      if (key === "b" && onToggleSidebar) {
+        e.preventDefault();
+        onToggleSidebar();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handleSaveJSON,
+    handleSaveYAML,
+    onExportYAML,
+    freeDrawMode,
+    onToggleSidebar,
+    runAutoLayoutWithNotice,
+  ]);
 
   return (
     <>

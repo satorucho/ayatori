@@ -4,6 +4,7 @@ import type { NodeProps, Node } from "@xyflow/react";
 import { FONT } from "../../layout/constants.ts";
 import { useThemeColors } from "../../theme/useTheme.ts";
 import type { NodeStyle, Comment } from "../../types/schema.ts";
+import CommentBadge from "../overlays/CommentBadge.tsx";
 
 export type StartEndNodeData = {
   label: string;
@@ -87,6 +88,7 @@ function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
           </text>
         )}
       </svg>
+      <CommentBadge comments={data.comments} />
       <Handle type="target" position={Position.Top} id="top" />
       <Handle type="source" position={Position.Bottom} id="bottom" />
       <Handle type="target" position={Position.Left} id="left" />
