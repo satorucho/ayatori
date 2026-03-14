@@ -39,6 +39,16 @@ jobs:
       - name: Copy IIFE bundle into dist
         run: cp dist-lib/ayatori.iife.js dist/
 
+      - name: Ensure static resources are included
+        run: cp -R public/. dist/
+
+      - name: Verify required static resources
+        run: |
+          test -f dist/logo.svg
+          test -f dist/logo_sm.svg
+          test -f dist/sample-flows/simple-flow.yaml
+          test -f dist/sample-flows/asis-flow.yaml
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
