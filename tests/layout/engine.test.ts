@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateLayout } from "../../src/layout/engine.ts";
+import { calculateLayout, computeAllSizes } from "../../src/layout/engine.ts";
 import type { FlowChartSchema } from "../../src/types/schema.ts";
 
 const simpleFlow: FlowChartSchema = {
@@ -88,6 +88,99 @@ describe("calculateLayout", () => {
 
     for (let i = 1; i < ys.length; i++) {
       expect(ys[i]).toBeGreaterThan(ys[i - 1]);
+    }
+  });
+});
+
+const multiPhaseFlow: FlowChartSchema = {
+  schemaVersion: "1",
+  meta: { name: "multi-phase", purpose: "test", granularity: "business", version: "2026-01-01" },
+  lanes: [
+    { id: "lane-a", label: "Admin", order: 0 },
+    { id: "lane-b", label: "User", order: 1 },
+  ],
+  phases: [
+    { id: "ph1", label: "Phase 1", order: 0 },
+    { id: "ph2", label: "Phase 2", order: 1 },
+    { id: "ph3", label: "Phase 3", order: 2 },
+  ],
+  nodes: [
+    { id: "s", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: "ph1", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "a1", type: "process", label: "A1", sublabel: null, lane: "lane-a", phase: "ph1", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b1", type: "process", label: "B1", sublabel: null, lane: "lane-a", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b2", type: "process", label: "B2", sublabel: null, lane: "lane-b", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b3", type: "process", label: "B3", sublabel: null, lane: "lane-a", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b4", type: "process", label: "B4", sublabel: null, lane: "lane-b", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b5", type: "process", label: "B5", sublabel: null, lane: "lane-b", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "b-end", type: "end", label: "B-End", sublabel: null, lane: "lane-b", phase: "ph2", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "c1", type: "process", label: "C1", sublabel: null, lane: "lane-a", phase: "ph3", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "c2", type: "process", label: "C2", sublabel: null, lane: "lane-a", phase: "ph3", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+    { id: "c3", type: "process", label: "C3", sublabel: null, lane: "lane-a", phase: "ph3", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+  ],
+  edges: [
+    { id: "e1", source: "s", target: "a1", type: "normal", label: null, comments: [] },
+    { id: "e2", source: "a1", target: "b1", type: "normal", label: null, comments: [] },
+    { id: "e3", source: "b1", target: "b2", type: "normal", label: null, comments: [] },
+    { id: "e4", source: "b2", target: "b3", type: "normal", label: null, comments: [] },
+    { id: "e5", source: "b3", target: "b4", type: "normal", label: null, comments: [] },
+    { id: "e6", source: "b4", target: "b5", type: "normal", label: null, comments: [] },
+    { id: "e7", source: "b5", target: "b-end", type: "normal", label: null, comments: [] },
+    { id: "e8", source: "a1", target: "c1", type: "normal", label: null, comments: [] },
+    { id: "e9", source: "c1", target: "c2", type: "normal", label: null, comments: [] },
+    { id: "e10", source: "c2", target: "c3", type: "normal", label: null, comments: [] },
+  ],
+  layout: null,
+  designNotes: [],
+  openQuestions: [],
+};
+
+describe("calculateLayout – cross-phase same-lane gap", () => {
+  it("same-lane nodes in a later phase have uniform vertical spacing", async () => {
+    const layout = await calculateLayout(multiPhaseFlow);
+    const sizes = computeAllSizes(multiPhaseFlow);
+
+    function getHalfH(id: string) {
+      const node = multiPhaseFlow.nodes.find((n) => n.id === id)!;
+      const size = sizes.get(id)!;
+      return node.type === "decision" || node.type === "start" || node.type === "end"
+        ? size.height
+        : size.height / 2;
+    }
+
+    const c1Bottom = layout.positions["c1"].y + getHalfH("c1");
+    const c2Top = layout.positions["c2"].y - getHalfH("c2");
+    const c2Bottom = layout.positions["c2"].y + getHalfH("c2");
+    const c3Top = layout.positions["c3"].y - getHalfH("c3");
+
+    const gap12 = c2Top - c1Bottom;
+    const gap23 = c3Top - c2Bottom;
+
+    expect(gap12).toBeCloseTo(gap23, 0);
+  });
+
+  it("phase 3 nodes are all below phase 2 nodes", async () => {
+    const layout = await calculateLayout(multiPhaseFlow);
+    const sizes = computeAllSizes(multiPhaseFlow);
+
+    const ph2Nodes = multiPhaseFlow.nodes.filter((n) => n.phase === "ph2");
+    const ph3Nodes = multiPhaseFlow.nodes.filter((n) => n.phase === "ph3");
+
+    let maxPh2Bottom = -Infinity;
+    for (const node of ph2Nodes) {
+      const halfH =
+        node.type === "decision" || node.type === "start" || node.type === "end"
+          ? sizes.get(node.id)!.height
+          : sizes.get(node.id)!.height / 2;
+      maxPh2Bottom = Math.max(maxPh2Bottom, layout.positions[node.id].y + halfH);
+    }
+
+    for (const node of ph3Nodes) {
+      const halfH =
+        node.type === "decision" || node.type === "start" || node.type === "end"
+          ? sizes.get(node.id)!.height
+          : sizes.get(node.id)!.height / 2;
+      const top = layout.positions[node.id].y - halfH;
+      expect(top).toBeGreaterThan(maxPh2Bottom);
     }
   });
 });
