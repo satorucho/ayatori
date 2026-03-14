@@ -185,16 +185,21 @@ export default function LaneOverlay({
   } | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const startEditing = useCallback(
     (laneId: string) => {
       const lane = schema.lanes.find((l) => l.id === laneId);
       const info = headerInfos.find((h) => h.laneId === laneId);
       if (!lane || !info) return;
 
+      const containerRect = svgRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
       const [tx, ty, z] = transform;
-      const headerY = minY - 120;
-      const sx = info.headerLeft * z + tx;
-      const sy = headerY * z + ty;
+      const hY = minY - 120;
+      const sx = info.headerLeft * z + tx + containerRect.left;
+      const sy = hY * z + ty + containerRect.top;
       const sw = info.headerWidth * z;
 
       setEditing({
@@ -285,13 +290,14 @@ export default function LaneOverlay({
   return (
     <>
       <svg
+        ref={svgRef}
         style={{
           position: "absolute",
           inset: 0,
           width,
           height,
           pointerEvents: "none",
-          zIndex: 0,
+          zIndex: 5,
         }}
       >
         <g transform={`translate(${tx}, ${ty}) scale(${zoom})`}>
@@ -390,12 +396,19 @@ export default function LaneOverlay({
         createPortal(
           <input
             ref={editInputRef}
-            className="fixed z-[9999] px-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 outline-none text-center"
+            className="fixed z-[9999] border border-blue-500 rounded outline-none text-center"
             style={{
               left: editing.x,
               top: editing.y,
               width: editing.width,
               height: LANE.headerHeight * transform[2],
+              fontSize: FONT.laneHeader.size * transform[2],
+              fontWeight: FONT.laneHeader.weight,
+              fontFamily: FONT_FAMILY,
+              background: colors.laneHeader.fill,
+              color: colors.laneHeader.text,
+              padding: 0,
+              lineHeight: `${LANE.headerHeight * transform[2]}px`,
             }}
             value={editing.value}
             onChange={(e) =>

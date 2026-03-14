@@ -390,8 +390,10 @@ export function calculateLaneDividers(
 ): LaneBoundary[] {
   const lanes = [...schema.lanes].sort((a, b) => a.order - b.order);
   const boundaries: LaneBoundary[] = [];
+  const emptyIndices: number[] = [];
 
-  for (const lane of lanes) {
+  for (let idx = 0; idx < lanes.length; idx++) {
+    const lane = lanes[idx];
     const laneNodeIds = schema.nodes
       .filter((n) => n.lane === lane.id)
       .map((n) => n.id);
@@ -417,16 +419,34 @@ export function calculateLaneDividers(
     }
 
     if (minLeft === Infinity) {
-      minLeft = 0;
-      maxRight = 0;
+      emptyIndices.push(idx);
+      boundaries.push({ laneId: lane.id, minLeft: NaN, maxRight: NaN, dividerX: 0 });
+    } else {
+      boundaries.push({ laneId: lane.id, minLeft, maxRight, dividerX: 0 });
+    }
+  }
+
+  const DEFAULT_LANE_W = 200;
+  for (const idx of emptyIndices) {
+    let leftRef: LaneBoundary | null = null;
+    for (let j = idx - 1; j >= 0; j--) {
+      if (!isNaN(boundaries[j].minLeft)) { leftRef = boundaries[j]; break; }
+    }
+    let rightRef: LaneBoundary | null = null;
+    for (let j = idx + 1; j < boundaries.length; j++) {
+      if (!isNaN(boundaries[j].minLeft)) { rightRef = boundaries[j]; break; }
     }
 
-    boundaries.push({
-      laneId: lane.id,
-      minLeft,
-      maxRight,
-      dividerX: 0,
-    });
+    if (leftRef) {
+      boundaries[idx].minLeft = leftRef.maxRight + LANE.gapBetweenLanes;
+      boundaries[idx].maxRight = boundaries[idx].minLeft + DEFAULT_LANE_W;
+    } else if (rightRef) {
+      boundaries[idx].maxRight = rightRef.minLeft - LANE.gapBetweenLanes;
+      boundaries[idx].minLeft = boundaries[idx].maxRight - DEFAULT_LANE_W;
+    } else {
+      boundaries[idx].minLeft = idx * (DEFAULT_LANE_W + LANE.gapBetweenLanes);
+      boundaries[idx].maxRight = boundaries[idx].minLeft + DEFAULT_LANE_W;
+    }
   }
 
   for (let i = 0; i < boundaries.length - 1; i++) {
@@ -510,8 +530,10 @@ export function calculatePhaseDividers(
   if (sortedPhases.length === 0) return [];
 
   const boundaries: PhaseBoundary[] = [];
+  const emptyIndices: number[] = [];
 
-  for (const phase of sortedPhases) {
+  for (let idx = 0; idx < sortedPhases.length; idx++) {
+    const phase = sortedPhases[idx];
     const phaseNodes = schema.nodes.filter((n) => n.phase === phase.id);
     let minTop = Infinity;
     let maxBottom = -Infinity;
@@ -526,15 +548,36 @@ export function calculatePhaseDividers(
       maxBottom = Math.max(maxBottom, pos.y + halfH);
     }
 
-    if (minTop === Infinity) continue;
+    if (minTop === Infinity) {
+      emptyIndices.push(idx);
+      boundaries.push({ phaseId: phase.id, label: phase.label, minTop: NaN, maxBottom: NaN, dividerY: 0 });
+    } else {
+      boundaries.push({ phaseId: phase.id, label: phase.label, minTop, maxBottom, dividerY: 0 });
+    }
+  }
 
-    boundaries.push({
-      phaseId: phase.id,
-      label: phase.label,
-      minTop,
-      maxBottom,
-      dividerY: 0,
-    });
+  const DEFAULT_PHASE_H = 120;
+  const PHASE_GAP = PHASE.headerHeight + PHASE.headerPaddingY * 2;
+  for (const idx of emptyIndices) {
+    let topRef: PhaseBoundary | null = null;
+    for (let j = idx - 1; j >= 0; j--) {
+      if (!isNaN(boundaries[j].minTop)) { topRef = boundaries[j]; break; }
+    }
+    let bottomRef: PhaseBoundary | null = null;
+    for (let j = idx + 1; j < boundaries.length; j++) {
+      if (!isNaN(boundaries[j].minTop)) { bottomRef = boundaries[j]; break; }
+    }
+
+    if (topRef) {
+      boundaries[idx].minTop = topRef.maxBottom + PHASE_GAP;
+      boundaries[idx].maxBottom = boundaries[idx].minTop + DEFAULT_PHASE_H;
+    } else if (bottomRef) {
+      boundaries[idx].maxBottom = bottomRef.minTop - PHASE_GAP;
+      boundaries[idx].minTop = boundaries[idx].maxBottom - DEFAULT_PHASE_H;
+    } else {
+      boundaries[idx].minTop = idx * (DEFAULT_PHASE_H + PHASE_GAP);
+      boundaries[idx].maxBottom = boundaries[idx].minTop + DEFAULT_PHASE_H;
+    }
   }
 
   for (let i = 0; i < boundaries.length - 1; i++) {

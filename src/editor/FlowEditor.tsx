@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { FlowChartSchema } from "../types/schema.ts";
@@ -18,6 +19,7 @@ import { exportToPNG } from "../export/to-png.ts";
 import Sidebar from "./Sidebar.tsx";
 import LaneOverlay from "./overlays/LaneOverlay.tsx";
 import PhaseOverlay from "./overlays/PhaseOverlay.tsx";
+import { LANE, PHASE, FONT, FONT_FAMILY } from "../layout/constants.ts";
 import { useTheme, useThemeColors } from "../theme/useTheme.ts";
 import { LayoutContext } from "./contexts/LayoutContext.ts";
 import { EditContext } from "./contexts/EditContext.ts";
@@ -127,8 +129,45 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const initialLayoutDone = useRef(false);
+  const { fitBounds, getNodes, getZoom } = useReactFlow();
 
-  const fitViewOptions = useMemo(() => ({ padding: 0.15 }), []);
+  const customFitView = useCallback(() => {
+    const allNodes = getNodes();
+    if (allNodes.length === 0) return;
+
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const node of allNodes) {
+      const w = node.measured?.width ?? (node.width as number | undefined) ?? 200;
+      const h = node.measured?.height ?? (node.height as number | undefined) ?? 40;
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + w);
+      maxY = Math.max(maxY, node.position.y + h);
+    }
+
+    if (schema.lanes.length > 1) {
+      minY = Math.min(minY, minY - 120 - LANE.headerHeight);
+    }
+    for (const pb of phaseBoundaries) {
+      const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
+      minY = Math.min(minY, headerY);
+    }
+
+    const PAD = 60;
+    fitBounds(
+      {
+        x: minX - PAD,
+        y: minY - PAD,
+        width: maxX - minX + PAD * 2,
+        height: maxY - minY + PAD * 2,
+      },
+      { duration: 200 },
+    );
+  }, [getNodes, fitBounds, schema.lanes.length, phaseBoundaries]);
+
   const layoutCtx = useMemo(() => ({ phaseBoundaries }), [phaseBoundaries]);
 
   const edgesWithReconnectable = useMemo(
@@ -143,9 +182,12 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   useEffect(() => {
     if (!initialLayoutDone.current) {
       initialLayoutDone.current = true;
-      runAutoLayout().then(() => resetHistory());
+      runAutoLayout().then(() => {
+        resetHistory();
+        setTimeout(() => customFitView(), 50);
+      });
     }
-  }, [runAutoLayout, resetHistory]);
+  }, [runAutoLayout, resetHistory, customFitView]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -195,6 +237,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     id: string;
     value: string;
     rect: { x: number; y: number; w: number; h: number };
+    zoom: number;
   } | null>(null);
   const editNodeRef = useRef<HTMLTextAreaElement>(null);
 
@@ -211,10 +254,11 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         id: rfNode.id,
         value: node.label,
         rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+        zoom: getZoom(),
       });
       setTimeout(() => editNodeRef.current?.focus(), 0);
     },
-    [schema.nodes],
+    [schema.nodes, getZoom],
   );
 
   const commitNodeEdit = useCallback(() => {
@@ -341,13 +385,22 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
                 onPaneClick={handlePaneClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                fitView
-                fitViewOptions={fitViewOptions}
                 defaultEdgeOptions={{ type: "flowEdge" }}
                 colorMode={isDark ? "dark" : "light"}
               >
                 <Background />
-                <Controls fitViewOptions={fitViewOptions} />
+                <Controls showFitView={false}>
+                  <button
+                    className="react-flow__controls-button"
+                    onClick={customFitView}
+                    title="全体を表示"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                      <path d="M2 5.5H14M2 10.5H14M5.5 2V14M10.5 2V14" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
+                    </svg>
+                  </button>
+                </Controls>
                 <MiniMap />
                 <LaneOverlay
                   schema={schema}
@@ -373,12 +426,19 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
           {editingNode && (
             <textarea
               ref={editNodeRef}
-              className="fixed z-[9999] px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 outline-none text-center resize-none"
+              className="fixed z-[9999] border border-blue-500 rounded outline-none text-center resize-none"
               style={{
                 left: editingNode.rect.x,
                 top: editingNode.rect.y,
                 width: editingNode.rect.w,
                 height: editingNode.rect.h,
+                fontSize: FONT.nodeMain.size * editingNode.zoom,
+                fontWeight: FONT.nodeMain.weight,
+                fontFamily: FONT_FAMILY,
+                lineHeight: 1.5,
+                padding: `${4 * editingNode.zoom}px ${8 * editingNode.zoom}px`,
+                background: "transparent",
+                color: "inherit",
               }}
               value={editingNode.value}
               onChange={(e) =>

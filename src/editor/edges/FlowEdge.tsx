@@ -5,7 +5,7 @@ import {
   EdgeLabelRenderer,
 } from "@xyflow/react";
 import type { EdgeProps, Edge } from "@xyflow/react";
-import { FONT, PHASE } from "../../layout/constants.ts";
+import { FONT, FONT_FAMILY, PHASE } from "../../layout/constants.ts";
 import { useThemeColors } from "../../theme/useTheme.ts";
 import { useLayoutContext } from "../contexts/LayoutContext.ts";
 import { useEditContext } from "../contexts/EditContext.ts";
@@ -177,8 +177,9 @@ function FlowEdge({
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               fontSize: FONT.edgeLabel.size,
+              fontFamily: FONT_FAMILY,
               color: selected ? SELECTED_COLOR : themeColors.sub.text,
-              fontWeight: selected ? 700 : 400,
+              fontWeight: selected ? 700 : FONT.edgeLabel.weight,
               pointerEvents: "all",
               background: themeColors.edgeLabelBg,
               padding: "1px 4px",
@@ -199,8 +200,12 @@ function FlowEdge({
                 className="bg-transparent outline-none text-center"
                 style={{
                   fontSize: FONT.edgeLabel.size,
+                  fontFamily: FONT_FAMILY,
+                  fontWeight: FONT.edgeLabel.weight,
                   color: "inherit",
-                  width: Math.max(40, editValue.length * 8 + 16),
+                  width: Math.max(40, editValue.length * 7 + 16),
+                  padding: 0,
+                  lineHeight: 1.4,
                 }}
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}

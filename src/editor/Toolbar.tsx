@@ -36,28 +36,13 @@ type MenuItem =
 
 function AyatoriIcon() {
   return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 32 32"
-      fill="none"
-      className="shrink-0"
-    >
-      <path
-        d="M6 10C12 22 20 22 26 10"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6 22C12 10 20 10 26 22"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        fill="none"
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src="/logo.svg"
+      alt="Ayatori"
+      width={22}
+      height={22}
+      className="shrink-0 dark:invert"
+    />
   );
 }
 

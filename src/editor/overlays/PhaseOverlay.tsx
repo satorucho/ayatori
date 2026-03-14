@@ -37,7 +37,7 @@ export default function PhaseOverlay({
       laneBoundaries[0].minLeft - LANE.marginLeft + LANE.headerInset;
     const right =
       laneBoundaries[laneBoundaries.length - 1].dividerX - LANE.headerInset;
-    return { left, right, width: right - left };
+    return { left, right, width: Math.max(0, right - left) };
   }, [laneBoundaries]);
 
   // --- Drag state for reordering ---
@@ -135,16 +135,21 @@ export default function PhaseOverlay({
   } | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const startEditing = useCallback(
     (phaseId: string) => {
       const phase = schema.phases.find((p) => p.id === phaseId);
       const pb = phaseBoundaries.find((p) => p.phaseId === phaseId);
       if (!phase || !pb || !xExtent) return;
 
+      const containerRect = svgRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
       const [tx, ty, z] = transform;
       const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
-      const sx = xExtent.left * z + tx;
-      const sy = headerY * z + ty;
+      const sx = xExtent.left * z + tx + containerRect.left;
+      const sy = headerY * z + ty + containerRect.top;
       const sw = xExtent.width * z;
 
       setEditing({
@@ -258,6 +263,7 @@ export default function PhaseOverlay({
   return (
     <>
       <svg
+        ref={svgRef}
         style={{
           position: "absolute",
           inset: 0,
@@ -319,17 +325,6 @@ export default function PhaseOverlay({
                   </text>
                 )}
 
-                {i < phaseBoundaries.length - 1 && (
-                  <line
-                    x1={bandLeft}
-                    y1={bounds.dividerY}
-                    x2={bandLeft + bandWidth}
-                    y2={bounds.dividerY}
-                    stroke={colors.divider}
-                    strokeWidth={1 / zoom}
-                    strokeDasharray={`${8 / zoom} ${4 / zoom}`}
-                  />
-                )}
               </g>
             );
           })}
@@ -349,12 +344,20 @@ export default function PhaseOverlay({
         createPortal(
           <input
             ref={editInputRef}
-            className="fixed z-[9999] px-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 outline-none"
+            className="fixed z-[9999] border border-blue-500 rounded outline-none"
             style={{
               left: editing.x,
               top: editing.y,
               width: editing.width,
               height: PHASE.headerHeight * transform[2],
+              fontSize: FONT.phase.size * transform[2],
+              fontWeight: FONT.phase.weight,
+              fontFamily: FONT_FAMILY,
+              background: colors.phase.fill,
+              color: colors.phase.text,
+              padding: 0,
+              paddingLeft: 4,
+              lineHeight: `${PHASE.headerHeight * transform[2]}px`,
             }}
             value={editing.value}
             onChange={(e) =>

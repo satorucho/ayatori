@@ -121,7 +121,10 @@ export default function App() {
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center space-y-6 max-w-md">
-        <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Ayatori</h1>
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo.svg" alt="Ayatori" className="w-28 h-28 dark:invert" />
+          <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Ayatori</h1>
+        </div>
         <p className="text-gray-500 dark:text-gray-400">
           業務フローチャートの双方向エディタ
         </p>
