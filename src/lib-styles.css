@@ -1,0 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap");
+
+/* React Flow handle styling for library */
+.react-flow__handle {
+  width: 6px !important;
+  height: 6px !important;
+  background: #94a3b8 !important;
+  border: 1px solid #fff !important;
+  opacity: 0;
+}
+
+.react-flow__node.selected > div {
+  outline: none !important;
+}
+
+.react-flow__node.selected {
+  outline: none !important;
+  box-shadow: none !important;
+}
