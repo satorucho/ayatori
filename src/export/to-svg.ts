@@ -1,7 +1,7 @@
 import type { FlowChartSchema, FlowLayout, FlowNode } from "../types/schema.ts";
 import type { ShapeSize } from "../layout/sizing.ts";
 import type { PhaseBoundary } from "../layout/types.ts";
-import { COLORS, FONT_FAMILY, ARROW_GAP, LANE, FONT, PHASE } from "../layout/constants.ts";
+import { COLORS, FONT_FAMILY, LANE, FONT, PHASE } from "../layout/constants.ts";
 import { calculateLaneDividers, calculatePhaseDividers } from "../layout/engine.ts";
 import { resolveHandles, getConnectionPoint } from "../layout/edge-routing.ts";
 import type { HandlePosition } from "../layout/edge-routing.ts";
@@ -85,12 +85,15 @@ export function exportToSVG(
   sizes: Map<string, ShapeSize>,
 ): string {
   const parts: string[] = [];
+  const laneOverlayParts: string[] = [];
+  const phaseOverlayParts: string[] = [];
 
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  let minNodeTop = Infinity;
+  let minNodeCenterY = Infinity;
+  let maxNodeCenterY = -Infinity;
 
   function expand(x: number, y: number, w = 0, h = 0) {
     minX = Math.min(minX, x);
@@ -105,7 +108,8 @@ export function exportToSVG(
     const size = sizes.get(node.id);
     if (!pos || !size) continue;
     const { halfW, halfH } = getHalfSize(node, size);
-    minNodeTop = Math.min(minNodeTop, pos.y - halfH);
+    minNodeCenterY = Math.min(minNodeCenterY, pos.y);
+    maxNodeCenterY = Math.max(maxNodeCenterY, pos.y);
     expand(pos.x - halfW, pos.y - halfH, halfW * 2, halfH * 2);
   }
 
@@ -138,10 +142,16 @@ export function exportToSVG(
   const phaseBounds = schema.phases.length > 0
     ? calculatePhaseDividers(layout.positions, schema, sizes)
     : [];
+  const laneHeaderY = Number.isFinite(minNodeCenterY)
+    ? minNodeCenterY - LANE.headerOffsetY
+    : minY - LANE.headerOffsetY;
+  const laneDividerBottomY = Number.isFinite(maxNodeCenterY)
+    ? maxNodeCenterY + 200
+    : maxY + 200;
 
   // Phase section headers (horizontal bands)
   if (phaseBounds.length > 0) {
-    parts.push(`<!-- ====== Phase Section Headers ====== -->`);
+    phaseOverlayParts.push(`<!-- ====== Phase Section Headers ====== -->`);
 
     let bandLeft = LANE.marginLeft;
     let bandRight = maxX;
@@ -154,20 +164,27 @@ export function exportToSVG(
     for (const pb of phaseBounds) {
       const headerY = pb.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
       expand(bandLeft, headerY, bandWidth, PHASE.headerHeight);
-      parts.push(
+      phaseOverlayParts.push(
         `<rect x="${bandLeft}" y="${headerY}" width="${bandWidth}" height="${PHASE.headerHeight}" rx="3" fill="${COLORS.phase.fill}" stroke="${COLORS.phase.stroke}" stroke-width="1"/>`,
       );
-      parts.push(
+      phaseOverlayParts.push(
         `<text x="${bandLeft + 12}" y="${headerY + PHASE.headerHeight / 2 + 1}" dominant-baseline="central" font-size="${FONT.phase.size}" font-weight="${FONT.phase.weight}" fill="${COLORS.phase.text}">${escapeXml(pb.label)}</text>`,
       );
     }
   }
 
   if (schema.lanes.length > 1) {
-    parts.push(`<!-- ====== Lane Headers ====== -->`);
-    const laneHeaderY = Number.isFinite(minNodeTop)
-      ? minNodeTop - LANE.headerOffsetY
-      : minY - LANE.headerOffsetY;
+    laneOverlayParts.push(`<!-- ====== Lane Dividers ====== -->`);
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      const dividerX = boundaries[i].dividerX;
+      expand(dividerX, laneHeaderY);
+      expand(dividerX, laneDividerBottomY);
+      laneOverlayParts.push(
+        `<line x1="${dividerX}" y1="${laneHeaderY}" x2="${dividerX}" y2="${laneDividerBottomY}" stroke="${COLORS.divider}" stroke-width="1" stroke-dasharray="8 4"/>`,
+      );
+    }
+
+    laneOverlayParts.push(`<!-- ====== Lane Headers ====== -->`);
     const sortedLanes = [...schema.lanes].sort((a, b) => a.order - b.order);
     for (let i = 0; i < sortedLanes.length; i++) {
       const lane = sortedLanes[i];
@@ -190,10 +207,10 @@ export function exportToSVG(
       expand(headerLeft, headerY, headerWidth, LANE.headerHeight);
 
       const cx = headerLeft + headerWidth / 2;
-      parts.push(
+      laneOverlayParts.push(
         `<rect x="${headerLeft}" y="${headerY}" width="${headerWidth}" height="${LANE.headerHeight}" rx="3" fill="${COLORS.laneHeader.fill}"/>`,
       );
-      parts.push(
+      laneOverlayParts.push(
         `<text x="${cx}" y="${headerY + LANE.headerHeight / 2}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.laneHeader.size}" font-weight="${FONT.laneHeader.weight}" fill="${COLORS.laneHeader.text}">${escapeXml(lane.label)}</text>`,
       );
     }
@@ -290,9 +307,9 @@ export function exportToSVG(
     const src = getConnectionPoint(srcPos, srcNode, srcSize, sourceHandle);
     const tgt = getConnectionPoint(tgtPos, tgtNode, tgtSize, targetHandle);
 
-    // Apply arrow gaps
-    const srcPt = applyGap(src, sourceHandle, ARROW_GAP.start);
-    const tgtPt = applyGap(tgt, targetHandle, ARROW_GAP.end + ARROW_GAP.marker);
+    // Keep exact node-boundary anchors to match editor rendering.
+    const srcPt = src;
+    const tgtPt = tgt;
 
     // Style
     let strokeColor: string = COLORS.arrow.default;
@@ -360,6 +377,10 @@ export function exportToSVG(
     }
   }
 
+  // Overlay layers: lane overlay above nodes/edges, phase overlay at front.
+  parts.push(...laneOverlayParts);
+  parts.push(...phaseOverlayParts);
+
   // Compute final viewBox with padding
   const padding = 20;
   const vx = Math.floor(minX - padding);
@@ -381,23 +402,6 @@ export function exportToSVG(
 interface Point {
   x: number;
   y: number;
-}
-
-/**
- * Apply a gap offset from a connection point in the direction of the handle.
- * Positive gap moves AWAY from the node; negative moves TOWARD the node.
- */
-function applyGap(pt: Point, handle: HandlePosition, gap: number): Point {
-  switch (handle) {
-    case "top":
-      return { x: pt.x, y: pt.y - gap };
-    case "bottom":
-      return { x: pt.x, y: pt.y + gap };
-    case "left":
-      return { x: pt.x - gap, y: pt.y };
-    case "right":
-      return { x: pt.x + gap, y: pt.y };
-  }
 }
 
 /**
