@@ -18,6 +18,7 @@ import type { FlowChartSchema, FlowLayout, NodeType } from "../../types/schema.t
 import { hydrateSchema } from "../../schema/hydrate.ts";
 import { yamlToSchema, schemaToYaml } from "../../schema/yaml.ts";
 import { computeAllSizes, calculateLayout, calculateLaneDividers, calculatePhaseDividers } from "../../layout/engine.ts";
+import { resolveHandles } from "../../layout/edge-routing.ts";
 import type { ShapeSize } from "../../layout/sizing.ts";
 import type { LaneBoundary, PhaseBoundary } from "../../layout/types.ts";
 import { generateId } from "../../utils/id.ts";
@@ -112,60 +113,20 @@ function schemaToRFNodes(
   });
 }
 
-function resolveHandles(
+/**
+ * Wrapper: resolve handles for an edge, falling back to default vertical
+ * when no layout is available.
+ */
+function resolveHandlesForEditor(
   edge: FlowChartSchema["edges"][0],
   schema: FlowChartSchema,
   layout: FlowLayout | null,
 ): { sourceHandle: string; targetHandle: string } {
-  // "no" edges: always horizontal (decision right → target left)
-  if (edge.type === "no") {
-    return { sourceHandle: "right", targetHandle: "left" };
+  if (!layout) {
+    if (edge.type === "no") return { sourceHandle: "right", targetHandle: "left" };
+    return { sourceHandle: "bottom", targetHandle: "top" };
   }
-
-  // "loop" edges: determine by position if available
-  if (edge.type === "loop" && layout) {
-    const srcPos = layout.positions[edge.source];
-    const tgtPos = layout.positions[edge.target];
-    if (srcPos && tgtPos) {
-      if (tgtPos.y < srcPos.y) {
-        return {
-          sourceHandle: tgtPos.x > srcPos.x ? "right" : "left",
-          targetHandle: tgtPos.x > srcPos.x ? "left" : "right",
-        };
-      }
-    }
-  }
-
-  // For normal downward edges: check if the edge would pass through an
-  // intermediate node in the same lane. If so, route to the left side
-  // to avoid visual overlap / hidden edges.
-  if (layout && edge.type !== "loop") {
-    const srcNode = schema.nodes.find((n) => n.id === edge.source);
-    const tgtNode = schema.nodes.find((n) => n.id === edge.target);
-    const srcPos = layout.positions[edge.source];
-    const tgtPos = layout.positions[edge.target];
-
-    if (srcNode && tgtNode && srcPos && tgtPos && srcNode.lane === tgtNode.lane) {
-      const minY = Math.min(srcPos.y, tgtPos.y);
-      const maxY = Math.max(srcPos.y, tgtPos.y);
-
-      const hasIntermediate = schema.nodes.some((n) => {
-        if (n.id === edge.source || n.id === edge.target) return false;
-        if (n.lane !== srcNode.lane) return false;
-        const pos = layout.positions[n.id];
-        return pos !== undefined && pos.y > minY + 10 && pos.y < maxY - 10;
-      });
-
-      if (hasIntermediate) {
-        // Route right to avoid crossing through intermediate nodes.
-        // The space between lanes provides clear visual room for the bypass path.
-        return { sourceHandle: "right", targetHandle: "right" };
-      }
-    }
-  }
-
-  // normal / yes / merge / hypothesis: always vertical flow
-  return { sourceHandle: "bottom", targetHandle: "top" };
+  return resolveHandles(edge, schema, layout);
 }
 
 function schemaToRFEdges(
@@ -173,7 +134,7 @@ function schemaToRFEdges(
   layout: FlowLayout | null = null,
 ): Edge[] {
   return schema.edges.map((edge) => {
-    const { sourceHandle, targetHandle } = resolveHandles(edge, schema, layout);
+    const { sourceHandle, targetHandle } = resolveHandlesForEditor(edge, schema, layout);
     return {
       id: edge.id,
       source: edge.source,

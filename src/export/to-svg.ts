@@ -3,8 +3,12 @@ import type { ShapeSize } from "../layout/sizing.ts";
 import type { PhaseBoundary } from "../layout/types.ts";
 import { COLORS, FONT_FAMILY, ARROW_GAP, LANE, FONT, PHASE } from "../layout/constants.ts";
 import { calculateLaneDividers, calculatePhaseDividers } from "../layout/engine.ts";
+import { resolveHandles, getConnectionPoint } from "../layout/edge-routing.ts";
+import type { HandlePosition } from "../layout/edge-routing.ts";
 
 const HEADER_MARGIN = 10;
+/** Extra offset for bypass paths beyond the rightmost/leftmost node edge */
+const BYPASS_OFFSET = 30;
 
 function avoidPhaseHeaders(
   midY: number,
@@ -52,6 +56,27 @@ function getHalfSize(node: FlowNode, size: ShapeSize) {
     return { halfW: size.width, halfH: size.height };
   }
   return { halfW: size.width / 2, halfH: size.height / 2 };
+}
+
+/**
+ * Find the rightmost edge of any node in a given lane (for bypass offset).
+ */
+function getLaneRightEdge(
+  schema: FlowChartSchema,
+  layout: FlowLayout,
+  sizes: Map<string, ShapeSize>,
+  laneId: string,
+): number {
+  let maxRight = -Infinity;
+  for (const node of schema.nodes) {
+    if (node.lane !== laneId) continue;
+    const pos = layout.positions[node.id];
+    const size = sizes.get(node.id);
+    if (!pos || !size) continue;
+    const { halfW } = getHalfSize(node, size);
+    maxRight = Math.max(maxRight, pos.x + halfW);
+  }
+  return maxRight;
 }
 
 export function exportToSVG(
@@ -242,17 +267,29 @@ export function exportToSVG(
     }
   }
 
-  // Edges — all orthogonal (right-angle) routing
+  // ====== Edges — handle-based orthogonal routing ======
   parts.push(`<!-- ====== Edges ====== -->`);
   for (const edge of schema.edges) {
+    const srcNode = schema.nodes.find((n) => n.id === edge.source);
+    const tgtNode = schema.nodes.find((n) => n.id === edge.target);
     const srcPos = layout.positions[edge.source];
     const tgtPos = layout.positions[edge.target];
     const srcSize = sizes.get(edge.source);
     const tgtSize = sizes.get(edge.target);
-    const srcNode = schema.nodes.find((n) => n.id === edge.source);
-    const tgtNode = schema.nodes.find((n) => n.id === edge.target);
-    if (!srcPos || !tgtPos || !srcSize || !tgtSize || !srcNode || !tgtNode) continue;
+    if (!srcNode || !tgtNode || !srcPos || !tgtPos || !srcSize || !tgtSize) continue;
 
+    // Resolve handle directions using shared logic
+    const { sourceHandle, targetHandle } = resolveHandles(edge, schema, layout);
+
+    // Compute connection points
+    const src = getConnectionPoint(srcPos, srcNode, srcSize, sourceHandle);
+    const tgt = getConnectionPoint(tgtPos, tgtNode, tgtSize, targetHandle);
+
+    // Apply arrow gaps
+    const srcPt = applyGap(src, sourceHandle, ARROW_GAP.start);
+    const tgtPt = applyGap(tgt, targetHandle, -(ARROW_GAP.end + ARROW_GAP.marker));
+
+    // Style
     let strokeColor = COLORS.arrow.default;
     let strokeWidth = 1.2;
     let dash = "";
@@ -272,59 +309,26 @@ export function exportToSVG(
       markerEnd = "";
     }
 
-    const { halfW: srcHW, halfH: srcHH } = getHalfSize(srcNode, srcSize);
-    const { halfW: tgtHW, halfH: tgtHH } = getHalfSize(tgtNode, tgtSize);
-
-    const dx = tgtPos.x - srcPos.x;
-    const dy = tgtPos.y - srcPos.y;
-
-    // Determine if primarily horizontal or vertical routing
-    const useHorizontal =
-      edge.type === "no" ||
-      (Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dy) < srcHH + tgtHH);
-
     const attrs = `stroke="${strokeColor}" stroke-width="${strokeWidth}"${dash} ${markerEnd}`;
 
-    if (useHorizontal) {
-      const goRight = dx > 0;
-      const x1 = goRight
-        ? srcPos.x + srcHW + ARROW_GAP.start
-        : srcPos.x - srcHW - ARROW_GAP.start;
-      const x2 = goRight
-        ? tgtPos.x - tgtHW - ARROW_GAP.end - ARROW_GAP.marker
-        : tgtPos.x + tgtHW + ARROW_GAP.end + ARROW_GAP.marker;
-      const y1 = srcPos.y;
-      const y2 = tgtPos.y;
+    // Generate the path based on handle combination
+    const pathPoints = buildOrthogonalPath(
+      srcPt, tgtPt, sourceHandle, targetHandle,
+      schema, layout, sizes, srcNode, tgtNode, phaseBounds,
+    );
 
-      if (Math.abs(y1 - y2) < 1) {
-        parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${attrs}/>`);
-      } else {
-        const midX = (x1 + x2) / 2;
-        parts.push(
-          `<polyline points="${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}" fill="none" ${attrs}/>`,
-        );
-      }
+    if (pathPoints.length === 2) {
+      parts.push(
+        `<line x1="${pathPoints[0].x}" y1="${pathPoints[0].y}" x2="${pathPoints[1].x}" y2="${pathPoints[1].y}" ${attrs}/>`,
+      );
     } else {
-      const goDown = dy >= 0;
-      const y1 = goDown
-        ? srcPos.y + srcHH + ARROW_GAP.start
-        : srcPos.y - srcHH - ARROW_GAP.start;
-      const y2 = goDown
-        ? tgtPos.y - tgtHH - ARROW_GAP.end - ARROW_GAP.marker
-        : tgtPos.y + tgtHH + ARROW_GAP.end + ARROW_GAP.marker;
-      const x1 = srcPos.x;
-      const x2 = tgtPos.x;
+      const pointStr = pathPoints.map((p) => `${p.x},${p.y}`).join(" ");
+      parts.push(`<polyline points="${pointStr}" fill="none" ${attrs}/>`);
+    }
 
-      if (Math.abs(x1 - x2) < 1) {
-        parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${attrs}/>`);
-      } else {
-        let midY = (y1 + y2) / 2;
-        const adjusted = avoidPhaseHeaders(midY, phaseBounds);
-        if (adjusted !== null) midY = adjusted;
-        parts.push(
-          `<polyline points="${x1},${y1} ${x1},${midY} ${x2},${midY} ${x2},${y2}" fill="none" ${attrs}/>`,
-        );
-      }
+    // Expand bounds to include edge paths (especially bypass paths)
+    for (const p of pathPoints) {
+      expand(p.x, p.y);
     }
 
     // Edge labels
@@ -365,4 +369,152 @@ export function exportToSVG(
   ].join("\n");
 
   return svg;
+}
+
+// ---- Helper functions for edge routing ----
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * Apply a gap offset from a connection point in the direction of the handle.
+ * Positive gap moves AWAY from the node; negative moves TOWARD the node.
+ */
+function applyGap(pt: Point, handle: HandlePosition, gap: number): Point {
+  switch (handle) {
+    case "top":
+      return { x: pt.x, y: pt.y - gap };
+    case "bottom":
+      return { x: pt.x, y: pt.y + gap };
+    case "left":
+      return { x: pt.x - gap, y: pt.y };
+    case "right":
+      return { x: pt.x + gap, y: pt.y };
+  }
+}
+
+/**
+ * Build orthogonal path waypoints for an edge based on source/target handles.
+ */
+function buildOrthogonalPath(
+  src: Point,
+  tgt: Point,
+  srcHandle: HandlePosition,
+  tgtHandle: HandlePosition,
+  schema: FlowChartSchema,
+  layout: FlowLayout,
+  sizes: Map<string, ShapeSize>,
+  srcNode: FlowNode,
+  tgtNode: FlowNode,
+  phaseBounds: PhaseBoundary[],
+): Point[] {
+  // bottom → top: vertical flow (possibly with horizontal jog for different X)
+  if (srcHandle === "bottom" && tgtHandle === "top") {
+    if (Math.abs(src.x - tgt.x) < 1) {
+      return [src, tgt];
+    }
+    // Z-bend: down, horizontal, down
+    let midY = (src.y + tgt.y) / 2;
+    const adjusted = avoidPhaseHeaders(midY, phaseBounds);
+    if (adjusted !== null) midY = adjusted;
+    return [
+      src,
+      { x: src.x, y: midY },
+      { x: tgt.x, y: midY },
+      tgt,
+    ];
+  }
+
+  // right → left: horizontal flow (possibly with vertical jog for different Y)
+  if (srcHandle === "right" && tgtHandle === "left") {
+    if (Math.abs(src.y - tgt.y) < 1) {
+      return [src, tgt];
+    }
+    // U-bend: right, vertical, left
+    const midX = (src.x + tgt.x) / 2;
+    return [
+      src,
+      { x: midX, y: src.y },
+      { x: midX, y: tgt.y },
+      tgt,
+    ];
+  }
+
+  // right → right: bypass routing (コの字)
+  // The path goes: right from source → down → right into target
+  if (srcHandle === "right" && tgtHandle === "right") {
+    // Find the rightmost edge of the lane for bypass offset
+    const laneRight = getLaneRightEdge(schema, layout, sizes, srcNode.lane);
+    const bypassX = Math.max(src.x, tgt.x, laneRight) + BYPASS_OFFSET;
+
+    return [
+      src,
+      { x: bypassX, y: src.y },
+      { x: bypassX, y: tgt.y },
+      tgt,
+    ];
+  }
+
+  // left → left: bypass routing (reverse コの字)
+  if (srcHandle === "left" && tgtHandle === "left") {
+    const laneLeft = src.x; // Approximate
+    const bypassX = Math.min(src.x, tgt.x, laneLeft) - BYPASS_OFFSET;
+
+    return [
+      src,
+      { x: bypassX, y: src.y },
+      { x: bypassX, y: tgt.y },
+      tgt,
+    ];
+  }
+
+  // bottom → left: L-shaped
+  if (srcHandle === "bottom" && tgtHandle === "left") {
+    return [
+      src,
+      { x: src.x, y: tgt.y },
+      tgt,
+    ];
+  }
+
+  // right → top: L-shaped
+  if (srcHandle === "right" && tgtHandle === "top") {
+    return [
+      src,
+      { x: tgt.x, y: src.y },
+      tgt,
+    ];
+  }
+
+  // left → top: L-shaped
+  if (srcHandle === "left" && tgtHandle === "top") {
+    return [
+      src,
+      { x: tgt.x, y: src.y },
+      tgt,
+    ];
+  }
+
+  // left → right: horizontal (opposite direction)
+  if (srcHandle === "left" && tgtHandle === "right") {
+    if (Math.abs(src.y - tgt.y) < 1) {
+      return [src, tgt];
+    }
+    const midX = (src.x + tgt.x) / 2;
+    return [
+      src,
+      { x: midX, y: src.y },
+      { x: midX, y: tgt.y },
+      tgt,
+    ];
+  }
+
+  // Fallback: generic two-segment path
+  return [
+    src,
+    { x: src.x, y: tgt.y },
+    tgt,
+  ];
 }
