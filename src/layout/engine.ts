@@ -343,8 +343,12 @@ function resolveYConflicts(
   const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
   const topoOrder = topologicalSort(schema, positions);
 
-  // Track placed node positions per lane for overlap detection
-  const placedInLane = new Map<string, { y: number; halfH: number }[]>();
+  // Track placed node positions per lane+phase for overlap detection.
+  // Key: "laneId\0phaseId" (phase may be "")
+  const placedInLanePhase = new Map<string, { y: number; halfH: number }[]>();
+
+  const lanePhaseKey = (lane: string, phase: string | null) =>
+    `${lane}\0${phase ?? ""}`;
 
   // Build predecessor map for edge constraints
   const predecessors = new Map<string, string[]>();
@@ -384,8 +388,11 @@ function resolveYConflicts(
       minY = pos.y;
     }
 
-    // Constraint 2: avoid actual overlaps with placed nodes in the same lane
-    const lanePeers = placedInLane.get(node.lane) ?? [];
+    // Constraint 2: avoid overlaps with placed nodes in the same lane AND phase.
+    // Cross-phase separation is handled by enforcePhaseOrdering, so we only
+    // need to prevent intra-phase collisions here.
+    const key = lanePhaseKey(node.lane, node.phase);
+    const lanePeers = placedInLanePhase.get(key) ?? [];
     for (const peer of lanePeers) {
       const currentTop = minY - halfH;
       const currentBottom = minY + halfH;
@@ -401,8 +408,8 @@ function resolveYConflicts(
     }
 
     pos.y = minY;
-    if (!placedInLane.has(node.lane)) placedInLane.set(node.lane, []);
-    placedInLane.get(node.lane)!.push({ y: pos.y, halfH });
+    if (!placedInLanePhase.has(key)) placedInLanePhase.set(key, []);
+    placedInLanePhase.get(key)!.push({ y: pos.y, halfH });
   }
 }
 
