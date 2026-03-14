@@ -178,6 +178,9 @@ npm test
 
 | テストファイル | 内容 |
 |---|---|
+| `tests/editor/import-validation.test.tsx` | ツールバー読込時の成功/失敗通知と検証結果の反映 |
+| `tests/editor/flow-state-persistence.test.ts` | 手動配置レイアウト（positions/viewport）の永続化検証 |
+| `tests/editor/toolbar.shortcuts.test.tsx` | `⌘/Ctrl+S/L/B` ショートカットの動作検証 |
 | `tests/layout/engine.test.ts` | レーン配置・短枝配置・縦方向順序のレイアウト検証 |
 | `tests/layout/sizing.test.ts` | テキスト幅計算、図形サイズ計算 (全角/半角/混在) |
 | `tests/schema/hydrate.test.ts` | hydrate/dehydrate と YAML roundtrip の整合性 |
