@@ -129,5 +129,82 @@ edges: []
       expect(result.error).toContain("スキーマ検証");
     }
   });
+
+  it("layout情報を含むJSONを保持する", () => {
+    const withLayout = JSON.stringify({
+      schemaVersion: "1",
+      meta: {
+        name: "レイアウト保持",
+        purpose: "テストが完了するまで",
+        granularity: "business",
+        version: "2026-03-14",
+      },
+      lanes: [{ id: "lane-0", label: "担当者", order: 0 }],
+      phases: [],
+      nodes: [
+        {
+          id: "n1",
+          type: "start",
+          label: "開始",
+          sublabel: null,
+          lane: "lane-0",
+          phase: null,
+          style: "default",
+          comments: [],
+          decisionMeta: null,
+          referenceTargetId: null,
+          timeLabel: null,
+        },
+        {
+          id: "n2",
+          type: "end",
+          label: "完了",
+          sublabel: null,
+          lane: "lane-0",
+          phase: null,
+          style: "default",
+          comments: [],
+          decisionMeta: null,
+          referenceTargetId: null,
+          timeLabel: null,
+        },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source: "n1",
+          target: "n2",
+          type: "normal",
+          label: null,
+          comments: [],
+        },
+      ],
+      layout: {
+        positions: {
+          n1: { x: 100, y: 120, pinned: true },
+          n2: { x: 280, y: 260 },
+        },
+        viewport: { x: -20, y: 15, zoom: 0.8 },
+      },
+      designNotes: [],
+      openQuestions: [],
+    });
+
+    const result = parseSchemaText(withLayout);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.schema.layout).not.toBeNull();
+      expect(result.schema.layout?.positions.n1).toEqual({
+        x: 100,
+        y: 120,
+        pinned: true,
+      });
+      expect(result.schema.layout?.viewport).toEqual({
+        x: -20,
+        y: 15,
+        zoom: 0.8,
+      });
+    }
+  });
 });
 
