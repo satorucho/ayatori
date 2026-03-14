@@ -46,6 +46,7 @@ http://localhost:5173 でエディタが起動する。
 
 ```bash
 npm run build       # プロダクションビルド
+npm run build:lib   # ホスティング用ライブラリビルド (dist-lib/ayatori.iife.js)
 npm run preview     # ビルド結果のプレビュー
 npm test            # テスト実行
 npm run test:watch  # テスト (watch モード)
@@ -201,6 +202,31 @@ npm test
 | `tests/layout/sizing.test.ts` | テキスト幅計算、図形サイズ計算 (全角/半角/混在) |
 | `tests/parser/text-flow-parser.test.ts` | テキストフローのパース (ノード・エッジ・分岐生成) |
 | `tests/schema/validate.test.ts` | スキーマバリデーション (必須フィールド・参照整合性) |
+
+---
+
+---
+
+## ホスティング用ライブラリ (Claude Artifact 対応)
+
+`npm run build:lib` で、`<script>` タグで読み込める自己完結型バンドルを生成する。
+
+```html
+<script src="ayatori.iife.js"></script>
+<div id="root" style="width: 100%; height: 100vh;"></div>
+<script>
+  Ayatori.render({
+    container: document.getElementById('root'),
+    yaml: '...',  // YAML テキスト
+    editable: true,
+    theme: 'auto',
+  });
+</script>
+```
+
+機能: ビジュアル表示 / YAML 編集 / YAML ダウンロード / 自動レイアウト / テーマ切り替え
+
+詳細は `agent-skill/ayatori-create-artifact/SKILL.md` を参照。
 
 ---
 

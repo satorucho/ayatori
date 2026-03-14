@@ -41,7 +41,10 @@ function getNodeHalfHeight(node: FlowNode, size: ShapeSize): number {
 
 /**
  * Topological sort using Kahn's algorithm.
- * Tie-breaking: nodes at the same level are ordered by their ELK-assigned Y position.
+ * Phase-aware: nodes are grouped by phase and processed phase-by-phase
+ * to ensure that all nodes in phase N are positioned before phase N+1.
+ * Within each phase, tie-breaking uses ELK-assigned Y position.
+ * Nodes without a phase are processed first (treated as phase -1).
  */
 function topologicalSort(
   schema: FlowChartSchema,
@@ -60,34 +63,71 @@ function topologicalSort(
     inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
   }
 
-  // Start with nodes that have no incoming edges, sorted by Y
-  const queue: string[] = [];
-  for (const node of schema.nodes) {
-    if ((inDegree.get(node.id) ?? 0) === 0) {
-      queue.push(node.id);
-    }
+  // Build phase order map: phaseId → order number
+  const phaseOrderMap = new Map<string, number>();
+  for (const phase of schema.phases) {
+    phaseOrderMap.set(phase.id, phase.order);
   }
-  queue.sort((a, b) => (positions[a]?.y ?? 0) - (positions[b]?.y ?? 0));
+
+  // Node phase order: null phase → -1, otherwise phase.order
+  const nodePhaseOrder = new Map<string, number>();
+  for (const node of schema.nodes) {
+    nodePhaseOrder.set(
+      node.id,
+      node.phase !== null ? (phaseOrderMap.get(node.phase) ?? 999) : -1,
+    );
+  }
+
+  // Get sorted unique phase orders
+  const sortedPhaseOrders = [
+    ...new Set([...nodePhaseOrder.values()]),
+  ].sort((a, b) => a - b);
+
+  // Group node IDs by phase order
+  const nodesByPhase = new Map<number, Set<string>>();
+  for (const [nodeId, order] of nodePhaseOrder) {
+    if (!nodesByPhase.has(order)) nodesByPhase.set(order, new Set());
+    nodesByPhase.get(order)!.add(nodeId);
+  }
+
+  // Working in-degree that gets decremented as we process nodes
+  const workingInDegree = new Map(inDegree);
 
   const result: string[] = [];
-  while (queue.length > 0) {
-    // Sort by Y for deterministic ordering at each step
-    queue.sort((a, b) => (positions[a]?.y ?? 0) - (positions[b]?.y ?? 0));
-    const nodeId = queue.shift()!;
-    result.push(nodeId);
 
-    for (const target of adjacency.get(nodeId) ?? []) {
-      const newDegree = (inDegree.get(target) ?? 1) - 1;
-      inDegree.set(target, newDegree);
-      if (newDegree === 0) {
-        queue.push(target);
+  for (const phaseOrder of sortedPhaseOrders) {
+    const phaseNodeIds = nodesByPhase.get(phaseOrder) ?? new Set();
+
+    // Build the queue for this phase: nodes that are ready (in-degree 0
+    // considering only edges whose source has already been processed)
+    const queue: string[] = [];
+    for (const nodeId of phaseNodeIds) {
+      if ((workingInDegree.get(nodeId) ?? 0) === 0) {
+        queue.push(nodeId);
+      }
+    }
+
+    while (queue.length > 0) {
+      // Sort by Y for deterministic ordering within phase
+      queue.sort((a, b) => (positions[a]?.y ?? 0) - (positions[b]?.y ?? 0));
+      const nodeId = queue.shift()!;
+      result.push(nodeId);
+
+      for (const target of adjacency.get(nodeId) ?? []) {
+        const newDegree = (workingInDegree.get(target) ?? 1) - 1;
+        workingInDegree.set(target, newDegree);
+        // Only add to queue if the target belongs to the CURRENT phase
+        if (newDegree === 0 && phaseNodeIds.has(target)) {
+          queue.push(target);
+        }
       }
     }
   }
 
-  // Add any remaining nodes (disconnected) not yet in result
+  // Add any remaining nodes (disconnected or cross-phase stragglers)
+  const resultSet = new Set(result);
   for (const node of schema.nodes) {
-    if (!result.includes(node.id)) {
+    if (!resultSet.has(node.id)) {
       result.push(node.id);
     }
   }
@@ -208,9 +248,11 @@ export async function calculateLayout(
   alignNodesByLane(positions, schema, sizes);
   // 2. Resolve Y conflicts for nodes in the same lane at overlapping Y positions
   resolveYConflicts(positions, schema, sizes);
-  // 3. Position short branch nodes beside their decision parent
+  // 3. Enforce cross-lane phase ordering: all nodes in phase N must be above phase N+1
+  enforcePhaseOrdering(positions, schema, sizes);
+  // 4. Position short branch nodes beside their decision parent
   applyShortBranches(positions, schema, sizes);
-  // 4. Insert vertical gaps between phases for section headers
+  // 5. Insert vertical gaps between phases for section headers
   insertPhaseGaps(positions, schema, sizes);
 
   return {
@@ -354,6 +396,87 @@ function resolveYConflicts(
   }
 }
 
+/**
+ * Post-process: ensure that ALL nodes in phase N are above ALL nodes in
+ * phase N+1, across ALL lanes.  After resolveYConflicts, a shorter lane
+ * may have its phase-N+1 nodes interleaved with a longer lane's phase-N
+ * nodes.  This step pushes later-phase nodes down so that phase regions
+ * never overlap vertically.
+ */
+function enforcePhaseOrdering(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  sizes: Map<string, ShapeSize>,
+): void {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  if (sortedPhases.length <= 1) return;
+
+  const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
+
+  for (let i = 0; i < sortedPhases.length - 1; i++) {
+    const currentPhaseId = sortedPhases[i].id;
+    const nextPhaseId = sortedPhases[i + 1].id;
+
+    // Find the maximum bottom Y of ALL nodes in the current phase
+    let maxBottom = -Infinity;
+    for (const node of schema.nodes) {
+      if (node.phase !== currentPhaseId) continue;
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+      maxBottom = Math.max(maxBottom, pos.y + getNodeHalfHeight(node, size));
+    }
+
+    if (maxBottom === -Infinity) continue;
+
+    // Ensure all nodes in the next phase are below maxBottom + spacing
+    const minRequired = maxBottom + SPACING.M_VERTICAL;
+
+    for (const node of schema.nodes) {
+      if (node.phase !== nextPhaseId) continue;
+      const pos = positions[node.id];
+      const size = sizes.get(node.id);
+      if (!pos || !size) continue;
+
+      const halfH = getNodeHalfHeight(node, size);
+      const requiredY = minRequired + halfH;
+
+      if (pos.y < requiredY) {
+        // Need to shift this node and all subsequent same-lane nodes down
+        const delta = requiredY - pos.y;
+        shiftPhaseDown(positions, schema, sizes, i + 1, delta);
+        break; // Recompute after shift
+      }
+    }
+  }
+}
+
+/**
+ * Shift all nodes in phases >= phaseIndex down by delta.
+ */
+function shiftPhaseDown(
+  positions: Record<string, NodePosition>,
+  schema: FlowChartSchema,
+  _sizes: Map<string, ShapeSize>,
+  phaseIndex: number,
+  delta: number,
+): void {
+  const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
+  const phaseIds = new Set<string>();
+  for (let i = phaseIndex; i < sortedPhases.length; i++) {
+    phaseIds.add(sortedPhases[i].id);
+  }
+
+  for (const node of schema.nodes) {
+    if (node.phase !== null && phaseIds.has(node.phase)) {
+      const pos = positions[node.id];
+      if (pos) {
+        positions[node.id] = { ...pos, y: pos.y + delta };
+      }
+    }
+  }
+}
+
 function applyShortBranches(
   positions: Record<string, NodePosition>,
   schema: FlowChartSchema,
@@ -463,9 +586,15 @@ export function calculateLaneDividers(
 
 /**
  * Post-process: insert vertical gaps between phases to make room for
- * horizontal section header bands.  All nodes whose Y center is below a
- * phase boundary are pushed down by one header-height increment per
- * boundary they sit below.
+ * horizontal section header bands.
+ *
+ * For each phase boundary, compute the existing gap between the last node
+ * of the current phase and the first node of the next phase. Only add
+ * enough extra space to accommodate the header band + padding.
+ * This prevents excessive whitespace when phases already have large gaps.
+ *
+ * Gaps are applied cumulatively: each subsequent phase boundary shifts
+ * all nodes below it.
  */
 function insertPhaseGaps(
   positions: Record<string, NodePosition>,
@@ -475,7 +604,11 @@ function insertPhaseGaps(
   const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
   if (sortedPhases.length <= 1) return;
 
-  const boundaryYs: number[] = [];
+  // Minimum required gap: header height + padding above and below
+  const requiredGap = PHASE.headerHeight + PHASE.headerPaddingY * 2;
+
+  // Compute each boundary: the Y midpoint and the extra gap needed
+  const boundaries: { boundaryY: number; extraGap: number }[] = [];
 
   for (let i = 0; i < sortedPhases.length - 1; i++) {
     const currentNodes = schema.nodes.filter(
@@ -503,17 +636,21 @@ function insertPhaseGaps(
     }
 
     if (maxBottom !== -Infinity && minTop !== Infinity) {
-      boundaryYs.push((maxBottom + minTop) / 2);
+      const existingGap = minTop - maxBottom;
+      const extraGap = Math.max(0, requiredGap - existingGap);
+      boundaries.push({
+        boundaryY: (maxBottom + minTop) / 2,
+        extraGap,
+      });
     }
   }
 
-  const gap = PHASE.headerHeight + PHASE.headerPaddingY * 2;
-
+  // Apply shifts cumulatively
   for (const nodeId of Object.keys(positions)) {
     const pos = positions[nodeId];
     let shift = 0;
-    for (const by of boundaryYs) {
-      if (pos.y > by) shift += gap;
+    for (const { boundaryY, extraGap } of boundaries) {
+      if (pos.y > boundaryY) shift += extraGap;
     }
     if (shift > 0) {
       positions[nodeId] = { ...positions[nodeId], y: pos.y + shift };

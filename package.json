@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:lib": "vite build --config vite.config.lib.ts"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.2.6",

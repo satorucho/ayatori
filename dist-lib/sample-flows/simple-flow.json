@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1",
+  "meta": {
+    "name": "簡単な承認フロー",
+    "purpose": "申請の承認が完了するまで",
+    "granularity": "business",
+    "version": "2026-03-13"
+  },
+  "lanes": [
+    { "id": "lane-applicant", "label": "申請者", "order": 0 },
+    { "id": "lane-approver", "label": "承認者", "order": 1 }
+  ],
+  "phases": [],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "start",
+      "label": "申請開始",
+      "sublabel": null,
+      "lane": "lane-applicant",
+      "phase": null,
+      "style": "default",
+      "comments": [],
+      "decisionMeta": null,
+      "referenceTargetId": null,
+      "timeLabel": null
+    },
+    {
+      "id": "n2",
+      "type": "process",
+      "label": "申請書を作成する",
+      "sublabel": "申請システム",
+      "lane": "lane-applicant",
+      "phase": null,
+      "style": "default",
+      "comments": [],
+      "decisionMeta": null,
+      "referenceTargetId": null,
+      "timeLabel": null
+    },
+    {
+      "id": "n3",
+      "type": "decision",
+      "label": "内容に\n不備はないか",
+      "sublabel": null,
+      "lane": "lane-approver",
+      "phase": null,
+      "style": "default",
+      "comments": [],
+      "decisionMeta": {
+        "branchNumber": 1,
+        "yesDirection": "down",
+        "noDirection": "right"
+      },
+      "referenceTargetId": null,
+      "timeLabel": null
+    },
+    {
+      "id": "n4",
+      "type": "process",
+      "label": "差し戻す",
+      "sublabel": null,
+      "lane": "lane-approver",
+      "phase": null,
+      "style": "orange",
+      "comments": [],
+      "decisionMeta": null,
+      "referenceTargetId": null,
+      "timeLabel": null
+    },
+    {
+      "id": "n5",
+      "type": "process",
+      "label": "承認する",
+      "sublabel": "申請システム",
+      "lane": "lane-approver",
+      "phase": null,
+      "style": "default",
+      "comments": [],
+      "decisionMeta": null,
+      "referenceTargetId": null,
+      "timeLabel": null
+    },
+    {
+      "id": "n6",
+      "type": "end",
+      "label": "完了",
+      "sublabel": null,
+      "lane": "lane-approver",
+      "phase": null,
+      "style": "default",
+      "comments": [],
+      "decisionMeta": null,
+      "referenceTargetId": null,
+      "timeLabel": null
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "n1", "target": "n2", "type": "normal", "label": null, "comments": [] },
+    { "id": "e2", "source": "n2", "target": "n3", "type": "normal", "label": null, "comments": [] },
+    { "id": "e3", "source": "n3", "target": "n4", "type": "no", "label": "No", "comments": [] },
+    { "id": "e4", "source": "n3", "target": "n5", "type": "yes", "label": "Yes", "comments": [] },
+    { "id": "e5", "source": "n5", "target": "n6", "type": "normal", "label": null, "comments": [] }
+  ],
+  "layout": null,
+  "designNotes": [
+    "分岐①を「内容に不備はないか」にした理由: 不備なし（Yes）が多数派のため正常系"
+  ],
+  "openQuestions": ["①差し戻し後の再申請フローが必要か"]
+}
