@@ -1,8 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import FlowEditor from "./editor/FlowEditor.tsx";
 import type { FlowChartSchema } from "./types/schema.ts";
-import { hydrateSchema } from "./schema/hydrate.ts";
-import { yamlToSchema } from "./schema/yaml.ts";
+import { parseSchemaText } from "./schema/parse.ts";
 
 const EMPTY_SCHEMA: FlowChartSchema = {
   schemaVersion: "1",
@@ -60,6 +59,16 @@ const EMPTY_SCHEMA: FlowChartSchema = {
 export default function App() {
   const [schema, setSchema] = useState<FlowChartSchema | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: "error" | "success";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const handleNew = useCallback(() => {
     setSchema({ ...EMPTY_SCHEMA });
@@ -69,15 +78,21 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch(`/sample-flows/${filename}`);
-      if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
-        const text = await res.text();
-        setSchema(yamlToSchema(text));
-      } else {
-        const data = await res.json();
-        setSchema(hydrateSchema(data as Record<string, unknown>));
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
+      const text = await res.text();
+      const parsed = parseSchemaText(text);
+      if (!parsed.ok) {
+        setNotice({ type: "error", message: parsed.error });
+        return;
+      }
+      setSchema(parsed.schema);
     } catch (err) {
-      console.error("Failed to load sample:", err);
+      setNotice({
+        type: "error",
+        message: `サンプルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -92,18 +107,13 @@ export default function App() {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        try {
-          const text = reader.result as string;
-          const isYaml = file.name.endsWith(".yaml") || file.name.endsWith(".yml");
-          if (isYaml) {
-            setSchema(yamlToSchema(text));
-          } else {
-            const data = JSON.parse(text) as Record<string, unknown>;
-            setSchema(hydrateSchema(data));
-          }
-        } catch (err) {
-          console.error("Invalid file:", err);
+        const text = String(reader.result ?? "");
+        const parsed = parseSchemaText(text);
+        if (!parsed.ok) {
+          setNotice({ type: "error", message: parsed.error });
+          return;
         }
+        setSchema(parsed.schema);
       };
       reader.readAsText(file);
     };
@@ -129,6 +139,17 @@ export default function App() {
           業務フローチャートの双方向エディタ
         </p>
         <div className="space-y-3">
+          {notice && (
+            <div
+              className={`text-left text-sm px-3 py-2 rounded border ${
+                notice.type === "error"
+                  ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                  : "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
+              }`}
+            >
+              {notice.message}
+            </div>
+          )}
           <button
             onClick={handleNew}
             className="w-full px-6 py-3 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors font-medium"

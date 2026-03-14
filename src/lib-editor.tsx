@@ -28,7 +28,7 @@ import type { ShapeSize } from "./layout/sizing.ts";
 import type { LaneBoundary, PhaseBoundary } from "./layout/types.ts";
 import { nodeTypes } from "./editor/nodes/index.ts";
 import { edgeTypes } from "./editor/edges/index.ts";
-import { LANE, PHASE, FONT, FONT_FAMILY, COLORS } from "./layout/constants.ts";
+import { FONT_FAMILY, COLORS } from "./layout/constants.ts";
 import { LayoutContext } from "./editor/contexts/LayoutContext.ts";
 import { EditContext } from "./editor/contexts/EditContext.ts";
 import LaneOverlay from "./editor/overlays/LaneOverlay.tsx";
@@ -134,7 +134,6 @@ function EmbedInner({
   const [yamlText, setYamlText] = useState(initialYaml);
   const [schema, setSchema] = useState<FlowChartSchema | null>(null);
   const [layoutState, setLayoutState] = useState<FlowLayout | null>(null);
-  const [sizes, setSizes] = useState<Map<string, ShapeSize>>(new Map());
   const [laneBoundaries, setLaneBoundaries] = useState<LaneBoundary[]>([]);
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundary[]>([]);
   const [showYaml, setShowYaml] = useState(false);
@@ -161,7 +160,6 @@ function EmbedInner({
       const rfEdges = schemaToRFEdges(s, newLayout);
       setSchema({ ...s, layout: newLayout });
       setLayoutState(newLayout);
-      setSizes(newSizes);
       setNodes(rfNodes);
       setEdges(rfEdges);
       setLaneBoundaries(calculateLaneDividers(newLayout.positions, s, newSizes));
@@ -178,27 +176,32 @@ function EmbedInner({
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    try {
-      const s = yamlToSchema(initialYaml);
-      doLayout(s).then(() => {
-        setTimeout(() => {
-          const allNodes = getNodes();
-          if (allNodes.length === 0) return;
-          let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
-          for (const n of allNodes) {
-            const w = n.measured?.width ?? (n.width as number | undefined) ?? 200;
-            const h = n.measured?.height ?? (n.height as number | undefined) ?? 40;
-            mnX = Math.min(mnX, n.position.x);
-            mnY = Math.min(mnY, n.position.y);
-            mxX = Math.max(mxX, n.position.x + w);
-            mxY = Math.max(mxY, n.position.y + h);
-          }
-          fitBounds({ x: mnX - 40, y: mnY - 100, width: mxX - mnX + 80, height: mxY - mnY + 200 }, { duration: 200 });
-        }, 100);
-      });
-    } catch (err) {
-      setError(String(err));
-    }
+    queueMicrotask(() => {
+      try {
+        const s = yamlToSchema(initialYaml);
+        void doLayout(s).then(() => {
+          setTimeout(() => {
+            const allNodes = getNodes();
+            if (allNodes.length === 0) return;
+            let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+            for (const n of allNodes) {
+              const w = n.measured?.width ?? (n.width as number | undefined) ?? 200;
+              const h = n.measured?.height ?? (n.height as number | undefined) ?? 40;
+              mnX = Math.min(mnX, n.position.x);
+              mnY = Math.min(mnY, n.position.y);
+              mxX = Math.max(mxX, n.position.x + w);
+              mxY = Math.max(mxY, n.position.y + h);
+            }
+            fitBounds(
+              { x: mnX - 40, y: mnY - 100, width: mxX - mnX + 80, height: mxY - mnY + 200 },
+              { duration: 200 },
+            );
+          }, 100);
+        });
+      } catch (err) {
+        setError(String(err));
+      }
+    });
   }, [initialYaml, doLayout, fitBounds, getNodes]);
 
   // Expose API

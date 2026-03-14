@@ -128,6 +128,10 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const initialLayoutDone = useRef(false);
   const { fitBounds, getNodes, getZoom } = useReactFlow();
 
@@ -226,12 +230,6 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     [],
   );
 
-  const handlePaneClick = useCallback(() => {
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-    setEditingNode(null);
-  }, []);
-
   // --- Inline node label editing ---
   const [editingNode, setEditingNode] = useState<{
     id: string;
@@ -240,6 +238,22 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     zoom: number;
   } | null>(null);
   const editNodeRef = useRef<HTMLTextAreaElement>(null);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setEditingNode(null);
+  }, []);
+
+  const pushNotice = useCallback((next: { type: "success" | "error"; message: string }) => {
+    setNotice(next);
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, rfNode: { id: string }) => {
@@ -364,9 +378,23 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAddLane={() => addLane()}
         onAddPhase={() => addPhase()}
+        onNotify={pushNotice}
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 relative">
+          {notice && (
+            <div className="absolute top-3 right-3 z-[1200] pointer-events-none">
+              <div
+                className={`text-sm px-3 py-2 rounded border shadow-sm ${
+                  notice.type === "error"
+                    ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                    : "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
+                }`}
+              >
+                {notice.message}
+              </div>
+            </div>
+          )}
           <EditContext.Provider value={editCtx}>
             <LayoutContext.Provider value={layoutCtx}>
               <ReactFlow

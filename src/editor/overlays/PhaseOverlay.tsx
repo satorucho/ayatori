@@ -274,7 +274,7 @@ export default function PhaseOverlay({
         }}
       >
         <g transform={`translate(${tx}, ${ty}) scale(${zoom})`}>
-          {phaseBoundaries.map((bounds, i) => {
+          {phaseBoundaries.map((bounds) => {
             const headerY =
               bounds.minTop - PHASE.headerHeight - PHASE.headerPaddingY;
             const bandLeft = xExtent.left;

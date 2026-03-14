@@ -7,7 +7,7 @@ interface ToolbarProps {
   onAutoLayout: () => Promise<void>;
   onExportJSON: () => string;
   onExportYAML?: () => string;
-  onImportJSON: (json: string) => void;
+  onImportJSON: (json: string) => { ok: true } | { ok: false; error: string };
   onExportSVG?: () => void;
   onExportHTML?: () => void;
   onExportPNG?: () => void;
@@ -22,6 +22,7 @@ interface ToolbarProps {
   onToggleSidebar?: () => void;
   onAddLane?: () => void;
   onAddPhase?: () => void;
+  onNotify?: (notice: { type: "success" | "error"; message: string }) => void;
 }
 
 type MenuItem =
@@ -124,6 +125,7 @@ export default function Toolbar({
   onToggleSidebar,
   onAddLane,
   onAddPhase,
+  onNotify,
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -147,12 +149,17 @@ export default function Toolbar({
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        onImportJSON(reader.result as string);
+        const result = onImportJSON(reader.result as string);
+        if (!result.ok) {
+          onNotify?.({ type: "error", message: result.error });
+          return;
+        }
+        onNotify?.({ type: "success", message: "ファイルを読み込みました" });
       };
       reader.readAsText(file);
       e.target.value = "";
     },
-    [onImportJSON],
+    [onImportJSON, onNotify],
   );
 
   const handleSaveJSON = useCallback(() => {
@@ -164,7 +171,8 @@ export default function Toolbar({
     a.download = "flowchart.json";
     a.click();
     URL.revokeObjectURL(url);
-  }, [onExportJSON]);
+    onNotify?.({ type: "success", message: "JSONを保存しました" });
+  }, [onExportJSON, onNotify]);
 
   const handleSaveYAML = useCallback(() => {
     if (!onExportYAML) return;
@@ -176,7 +184,8 @@ export default function Toolbar({
     a.download = "flowchart.yaml";
     a.click();
     URL.revokeObjectURL(url);
-  }, [onExportYAML]);
+    onNotify?.({ type: "success", message: "YAMLを保存しました" });
+  }, [onExportYAML, onNotify]);
 
   const close = useCallback(() => setOpenMenu(null), []);
 
@@ -232,6 +241,7 @@ export default function Toolbar({
             label: "SVGで書き出し",
             onClick: () => {
               onExportSVG();
+                onNotify?.({ type: "success", message: "SVGを書き出しました" });
               close();
             },
           },
@@ -244,6 +254,7 @@ export default function Toolbar({
             label: "HTMLで書き出し",
             onClick: () => {
               onExportHTML();
+                onNotify?.({ type: "success", message: "HTMLを書き出しました" });
               close();
             },
           },
@@ -256,6 +267,7 @@ export default function Toolbar({
             label: "PNGで書き出し",
             onClick: () => {
               onExportPNG();
+                onNotify?.({ type: "success", message: "PNGを書き出しました" });
               close();
             },
           },

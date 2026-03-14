@@ -15,8 +15,8 @@ import type {
   Connection,
 } from "@xyflow/react";
 import type { FlowChartSchema, FlowLayout, NodeType } from "../../types/schema.ts";
-import { hydrateSchema } from "../../schema/hydrate.ts";
-import { yamlToSchema, schemaToYaml } from "../../schema/yaml.ts";
+import { schemaToYaml } from "../../schema/yaml.ts";
+import { parseSchemaText } from "../../schema/parse.ts";
 import { computeAllSizes, calculateLayout, calculateLaneDividers, calculatePhaseDividers } from "../../layout/engine.ts";
 import { resolveHandles } from "../../layout/edge-routing.ts";
 import type { ShapeSize } from "../../layout/sizing.ts";
@@ -151,6 +151,10 @@ function schemaToRFEdges(
   });
 }
 
+export type ImportSchemaResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export function useFlowState(initialSchema: FlowChartSchema) {
   const {
     state: schema,
@@ -167,35 +171,35 @@ export function useFlowState(initialSchema: FlowChartSchema) {
   const [laneBoundaries, setLaneBoundaries] = useState<LaneBoundary[]>([]);
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundary[]>([]);
   const [freeDrawMode, setFreeDrawModeRaw] = useState(false);
-  const [needsRelayout, setNeedsRelayout] = useState(false);
+  const [relayoutTick, setRelayoutTick] = useState(0);
 
   const freeDrawModeRef = useRef(freeDrawMode);
-  freeDrawModeRef.current = freeDrawMode;
+  useEffect(() => {
+    freeDrawModeRef.current = freeDrawMode;
+  }, [freeDrawMode]);
 
   const requestRelayout = useCallback(() => {
-    if (!freeDrawModeRef.current) setNeedsRelayout(true);
+    if (!freeDrawModeRef.current) {
+      setRelayoutTick((tick) => tick + 1);
+    }
   }, []);
 
   const setFreeDrawMode = useCallback(
     (on: boolean) => {
       setFreeDrawModeRaw(on);
       freeDrawModeRef.current = on;
-      if (!on) setNeedsRelayout(true);
+      if (!on) setRelayoutTick((tick) => tick + 1);
     },
     [],
   );
 
   const sizes = useMemo(() => computeAllSizes(schema), [schema]);
 
-  const rfNodesInit = useMemo(() => {
-    if (!layoutState) return [];
-    return schemaToRFNodes(schema, layoutState, sizes);
-  }, []);
+  const initialRfNodes = layoutState ? schemaToRFNodes(schema, layoutState, sizes) : [];
+  const initialRfEdges = schemaToRFEdges(schema, layoutState);
 
-  const rfEdgesInit = useMemo(() => schemaToRFEdges(schema, layoutState), []);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(rfNodesInit);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(rfEdgesInit);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialRfNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialRfEdges);
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -267,10 +271,11 @@ export function useFlowState(initialSchema: FlowChartSchema) {
   }, [schema, setSchema, setNodes, setEdges]);
 
   useEffect(() => {
-    if (!needsRelayout) return;
-    setNeedsRelayout(false);
-    runAutoLayout();
-  }, [needsRelayout, runAutoLayout]);
+    if (relayoutTick === 0) return;
+    queueMicrotask(() => {
+      void runAutoLayout();
+    });
+  }, [relayoutTick, runAutoLayout]);
 
   const updateSchema = useCallback(
     (updater: (prev: FlowChartSchema) => FlowChartSchema) => {
@@ -299,14 +304,12 @@ export function useFlowState(initialSchema: FlowChartSchema) {
   }, [schema]);
 
   const importJSON = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      let parsed: FlowChartSchema;
-      if (trimmed.startsWith("{")) {
-        parsed = hydrateSchema(JSON.parse(trimmed) as Record<string, unknown>);
-      } else {
-        parsed = yamlToSchema(trimmed);
+    (text: string): ImportSchemaResult => {
+      const parsedResult = parseSchemaText(text);
+      if (!parsedResult.ok) {
+        return { ok: false, error: parsedResult.error };
       }
+      const parsed = parsedResult.schema;
       setSchema(parsed);
       if (parsed.layout) {
         setLayoutState(parsed.layout);
@@ -315,8 +318,13 @@ export function useFlowState(initialSchema: FlowChartSchema) {
         setEdges(schemaToRFEdges(parsed, parsed.layout));
         setLaneBoundaries(calculateLaneDividers(parsed.layout.positions, parsed, newSizes));
         setPhaseBoundaries(calculatePhaseDividers(parsed.layout.positions, parsed, newSizes));
+      } else {
+        setLayoutState(null);
+        setNodes([]);
+        setEdges([]);
       }
       requestRelayout();
+      return { ok: true };
     },
     [setSchema, setNodes, setEdges, requestRelayout],
   );
@@ -373,6 +381,7 @@ export function useFlowState(initialSchema: FlowChartSchema) {
 
       const centerX = rfNode.position.x + nodeW / 2;
       const centerY = rfNode.position.y + nodeH / 2;
+      const isFreeDraw = freeDrawModeRef.current;
 
       setSchema((prev) => {
         const existingNode = prev.nodes.find((n) => n.id === rfNode.id);
@@ -387,22 +396,60 @@ export function useFlowState(initialSchema: FlowChartSchema) {
 
         const laneChanged = newLane && newLane !== existingNode.lane;
         const phaseChanged = newPhase !== null && newPhase !== existingNode.phase;
+        const shouldUpdateNode = laneChanged || phaseChanged;
 
-        if (!laneChanged && !phaseChanged) return prev;
+        const nextNodes = shouldUpdateNode
+          ? prev.nodes.map((n) =>
+              n.id === rfNode.id
+                ? {
+                    ...n,
+                    ...(laneChanged ? { lane: newLane } : {}),
+                    ...(phaseChanged ? { phase: newPhase } : {}),
+                  }
+                : n,
+            )
+          : prev.nodes;
 
+        if (!isFreeDraw) {
+          if (!shouldUpdateNode) return prev;
+          return { ...prev, nodes: nextNodes };
+        }
+
+        const baseLayout = prev.layout ?? { positions: {}, viewport: { x: 0, y: 0, zoom: 1 } };
         return {
           ...prev,
-          nodes: prev.nodes.map((n) =>
-            n.id === rfNode.id
-              ? {
-                  ...n,
-                  ...(laneChanged ? { lane: newLane } : {}),
-                  ...(phaseChanged ? { phase: newPhase } : {}),
-                }
-              : n,
-          ),
+          nodes: nextNodes,
+          layout: {
+            ...baseLayout,
+            positions: {
+              ...baseLayout.positions,
+              [rfNode.id]: {
+                ...baseLayout.positions[rfNode.id],
+                x: centerX,
+                y: centerY,
+              },
+            },
+          },
         };
       });
+
+      if (isFreeDraw) {
+        setLayoutState((prev) => {
+          const baseLayout = prev ?? { positions: {}, viewport: { x: 0, y: 0, zoom: 1 } };
+          return {
+            ...baseLayout,
+            positions: {
+              ...baseLayout.positions,
+              [rfNode.id]: {
+                ...baseLayout.positions[rfNode.id],
+                x: centerX,
+                y: centerY,
+              },
+            },
+          };
+        });
+        return;
+      }
 
       // Auto-layout mode: always snap back to calculated positions
       requestRelayout();
