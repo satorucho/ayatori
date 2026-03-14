@@ -12,7 +12,8 @@ JSON Schema で定義された構造化データと、React Flow ベースのビ
 - **自動レイアウト** — ELK.js による layered アルゴリズムでレーン分離・分岐合流を自動配置
 - **6種のノード** — 開始/終了（楕円）、処理（角丸矩形）、分岐（ダイヤモンド）、データ（灰色）、手作業（オレンジ）、参照（青）
 - **コメント機構** — ノード/エッジにコメントを付与し、JSON 経由で AI に修正を依頼するワークフローに対応
-- **テキストフロー読込** — Markdown 形式のテキストフローから JSON に自動変換
+- **入力検証 + UI通知** — JSON/YAML 読込時にスキーマ検証し、成功/失敗を画面通知
+- **キーボード操作** — `⌘/Ctrl+O` 読込 / `⌘/Ctrl+S` 保存 / `⌘/Ctrl+L` 自動レイアウト / `⌘/Ctrl+B` サイドバー開閉
 - **3形式エクスポート** — SVG / スタンドアロン HTML / PNG (Retina 対応)
 - **日本語ネイティブ** — 全角/半角混在テキストの幅計算、Noto Sans JP フォント
 
@@ -72,33 +73,10 @@ npm run lint        # ESLint
 - ノード/エッジをクリックしてサイドバーでプロパティを編集
 - 「自動レイアウト」ボタンで ELK による自動配置を実行
 - サイドバーの「コメント」タブでノードにレビューコメントを追加
+- ノード/エッジに未解決コメントがある場合、キャンバス上に赤バッジで件数表示
+- フリードローON時に移動したノード位置は JSON/YAML 保存後も維持
 
-### 3. テキストフローから変換
-
-ツールバーの「テキストフロー読込」から、Markdown 形式のテキストフローを貼り付けて JSON に変換できる。
-
-```
-## メタ情報
-- フロー名: 承認フロー
-- 目的: 申請の承認が完了するまで
-- 粒度: 業務担当・PM向け
-- レーン: 申請者/承認者
-
-## フロー構造
-
-開始（申請開始）
-↓
-申請書を作成する（申請システム）
-↓
-分岐①: 内容に不備はないか
-Yes↓
-承認する
-No → 差し戻す
-↓
-完了
-```
-
-### 4. エクスポート
+### 3. エクスポート
 
 ツールバーから 3 形式でエクスポート:
 
@@ -106,7 +84,7 @@ No → 差し戻す
 - **HTML** — スタンドアロン HTML。ブラウザで開ける完結ファイル
 - **PNG** — ラスター画像 (2x Retina 対応)
 
-### 5. AI との修正ループ
+### 4. AI との修正ループ
 
 1. エディタ上でノードを選択し、コメントを追加
 2. 「JSON を保存」で書き出し
@@ -149,6 +127,7 @@ src/
 ├── types/schema.ts              # FlowChart Schema 型定義
 ├── schema/
 │   ├── validate.ts              # JSON バリデーション
+│   ├── parse.ts                 # JSON/YAML 読込 + 検証
 │   ├── defaults.ts              # ノード種別→スタイル自動判定
 │   └── migrate.ts               # スキーマバージョン移行
 ├── layout/
@@ -156,8 +135,6 @@ src/
 │   ├── sizing.ts                # テキスト計測・図形サイズ計算
 │   ├── engine.ts                # ELK レイアウトエンジン
 │   └── types.ts                 # レイアウト内部型
-├── parser/
-│   └── text-flow-parser.ts      # テキストフロー → JSON 変換
 ├── editor/
 │   ├── FlowEditor.tsx           # メインエディタ
 │   ├── Toolbar.tsx              # ツールバー (ファイル操作・エクスポート)
@@ -175,6 +152,8 @@ src/
 │   │   ├── LaneOverlay.tsx      # レーンヘッダー
 │   │   ├── PhaseOverlay.tsx     # Phase 帯
 │   │   └── CommentBadge.tsx     # コメントバッジ
+│   ├── adapters/
+│   │   └── flow-adapter.ts      # Schema ⇄ React Flow 変換共通化
 │   └── hooks/
 │       ├── useFlowState.ts      # Schema ⇄ React Flow 双方向変換
 │       ├── useAutoLayout.ts     # ELK レイアウト実行
@@ -199,8 +178,13 @@ npm test
 
 | テストファイル | 内容 |
 |---|---|
+| `tests/editor/import-validation.test.tsx` | ツールバー読込時の成功/失敗通知と検証結果の反映 |
+| `tests/editor/flow-state-persistence.test.ts` | 手動配置レイアウト（positions/viewport）の永続化検証 |
+| `tests/editor/toolbar.shortcuts.test.tsx` | `⌘/Ctrl+S/L/B` ショートカットの動作検証 |
+| `tests/layout/engine.test.ts` | レーン配置・短枝配置・縦方向順序のレイアウト検証 |
 | `tests/layout/sizing.test.ts` | テキスト幅計算、図形サイズ計算 (全角/半角/混在) |
-| `tests/parser/text-flow-parser.test.ts` | テキストフローのパース (ノード・エッジ・分岐生成) |
+| `tests/schema/hydrate.test.ts` | hydrate/dehydrate と YAML roundtrip の整合性 |
+| `tests/schema/parse.test.ts` | JSON/YAML 読込時の解析・検証エラー処理 |
 | `tests/schema/validate.test.ts` | スキーマバリデーション (必須フィールド・参照整合性) |
 
 ---

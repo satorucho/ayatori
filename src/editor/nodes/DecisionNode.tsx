@@ -4,6 +4,7 @@ import type { NodeProps, Node } from "@xyflow/react";
 import { FONT } from "../../layout/constants.ts";
 import { useThemeColors } from "../../theme/useTheme.ts";
 import type { Comment, DecisionMeta } from "../../types/schema.ts";
+import CommentBadge from "../overlays/CommentBadge.tsx";
 
 export type DecisionNodeData = {
   label: string;
@@ -72,6 +73,7 @@ function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
           ))
         )}
       </svg>
+      <CommentBadge comments={data.comments} />
       <Handle type="target" position={Position.Top} id="top" />
       <Handle type="source" position={Position.Bottom} id="bottom" />
       <Handle type="target" position={Position.Left} id="left" />

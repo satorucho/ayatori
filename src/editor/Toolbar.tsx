@@ -7,7 +7,7 @@ interface ToolbarProps {
   onAutoLayout: () => Promise<void>;
   onExportJSON: () => string;
   onExportYAML?: () => string;
-  onImportJSON: (json: string) => void;
+  onImportJSON: (json: string) => { ok: true } | { ok: false; error: string };
   onExportSVG?: () => void;
   onExportHTML?: () => void;
   onExportPNG?: () => void;
@@ -22,6 +22,7 @@ interface ToolbarProps {
   onToggleSidebar?: () => void;
   onAddLane?: () => void;
   onAddPhase?: () => void;
+  onNotify?: (notice: { type: "success" | "error"; message: string }) => void;
 }
 
 type MenuItem =
@@ -124,6 +125,7 @@ export default function Toolbar({
   onToggleSidebar,
   onAddLane,
   onAddPhase,
+  onNotify,
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -147,12 +149,17 @@ export default function Toolbar({
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        onImportJSON(reader.result as string);
+        const result = onImportJSON(reader.result as string);
+        if (!result.ok) {
+          onNotify?.({ type: "error", message: result.error });
+          return;
+        }
+        onNotify?.({ type: "success", message: "ファイルを読み込みました" });
       };
       reader.readAsText(file);
       e.target.value = "";
     },
-    [onImportJSON],
+    [onImportJSON, onNotify],
   );
 
   const handleSaveJSON = useCallback(() => {
@@ -164,7 +171,8 @@ export default function Toolbar({
     a.download = "flowchart.json";
     a.click();
     URL.revokeObjectURL(url);
-  }, [onExportJSON]);
+    onNotify?.({ type: "success", message: "JSONを保存しました" });
+  }, [onExportJSON, onNotify]);
 
   const handleSaveYAML = useCallback(() => {
     if (!onExportYAML) return;
@@ -176,9 +184,23 @@ export default function Toolbar({
     a.download = "flowchart.yaml";
     a.click();
     URL.revokeObjectURL(url);
-  }, [onExportYAML]);
+    onNotify?.({ type: "success", message: "YAMLを保存しました" });
+  }, [onExportYAML, onNotify]);
 
   const close = useCallback(() => setOpenMenu(null), []);
+
+  const runAutoLayoutWithNotice = useCallback(() => {
+    void onAutoLayout()
+      .then(() => {
+        onNotify?.({ type: "success", message: "自動レイアウトを実行しました" });
+      })
+      .catch((err) => {
+        onNotify?.({
+          type: "error",
+          message: `自動レイアウトに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      });
+  }, [onAutoLayout, onNotify]);
 
   const toggle = useCallback(
     (name: string) => setOpenMenu((prev) => (prev === name ? null : name)),
@@ -217,6 +239,7 @@ export default function Toolbar({
           {
             type: "action" as const,
             label: "YAMLで保存（コンパクト）",
+            shortcut: "⌘⇧S",
             onClick: () => {
               handleSaveYAML();
               close();
@@ -232,6 +255,7 @@ export default function Toolbar({
             label: "SVGで書き出し",
             onClick: () => {
               onExportSVG();
+                onNotify?.({ type: "success", message: "SVGを書き出しました" });
               close();
             },
           },
@@ -244,6 +268,7 @@ export default function Toolbar({
             label: "HTMLで書き出し",
             onClick: () => {
               onExportHTML();
+                onNotify?.({ type: "success", message: "HTMLを書き出しました" });
               close();
             },
           },
@@ -256,6 +281,7 @@ export default function Toolbar({
             label: "PNGで書き出し",
             onClick: () => {
               onExportPNG();
+                onNotify?.({ type: "success", message: "PNGを書き出しました" });
               close();
             },
           },
@@ -296,9 +322,10 @@ export default function Toolbar({
     {
       type: "action",
       label: "自動レイアウト",
+      shortcut: "⌘L",
       disabled: !freeDrawMode,
       onClick: () => {
-        onAutoLayout();
+        runAutoLayoutWithNotice();
         close();
       },
     },
@@ -421,6 +448,57 @@ export default function Toolbar({
         },
       ]
     : [];
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (isInput) return;
+
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (!isMeta) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "o") {
+        e.preventDefault();
+        fileInputRef.current?.click();
+        return;
+      }
+      if (key === "s") {
+        e.preventDefault();
+        if (e.shiftKey && onExportYAML) {
+          handleSaveYAML();
+        } else {
+          handleSaveJSON();
+        }
+        return;
+      }
+      if (key === "l") {
+        e.preventDefault();
+        if (freeDrawMode) {
+          runAutoLayoutWithNotice();
+        }
+        return;
+      }
+      if (key === "b" && onToggleSidebar) {
+        e.preventDefault();
+        onToggleSidebar();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handleSaveJSON,
+    handleSaveYAML,
+    onExportYAML,
+    freeDrawMode,
+    onToggleSidebar,
+    runAutoLayoutWithNotice,
+  ]);
 
   return (
     <>

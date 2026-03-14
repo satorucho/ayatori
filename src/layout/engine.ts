@@ -411,8 +411,6 @@ function enforcePhaseOrdering(
   const sortedPhases = [...schema.phases].sort((a, b) => a.order - b.order);
   if (sortedPhases.length <= 1) return;
 
-  const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
-
   for (let i = 0; i < sortedPhases.length - 1; i++) {
     const currentPhaseId = sortedPhases[i].id;
     const nextPhaseId = sortedPhases[i + 1].id;

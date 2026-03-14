@@ -4,6 +4,9 @@ import type {
   FlowEdge,
   Lane,
   Phase,
+  FlowLayout,
+  NodePosition,
+  Viewport,
   NodeType,
   EdgeType,
   DecisionMeta,
@@ -32,7 +35,7 @@ export function hydrateSchema(data: Record<string, unknown>): FlowChartSchema {
     phases,
     nodes,
     edges,
-    layout: null,
+    layout: hydrateLayout(data.layout),
     designNotes: Array.isArray(data.designNotes)
       ? (data.designNotes as string[])
       : [],
@@ -177,4 +180,48 @@ function hydrateEdges(raw: unknown[] | undefined): FlowEdge[] {
 function hydrateComments(raw: unknown): Comment[] {
   if (!Array.isArray(raw)) return [];
   return raw as Comment[];
+}
+
+function hydrateLayout(raw: unknown): FlowLayout | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const positions = hydratePositions(obj.positions);
+  if (!positions) return null;
+
+  const viewport = hydrateViewport(obj.viewport);
+  return {
+    positions,
+    viewport,
+  };
+}
+
+function hydratePositions(raw: unknown): Record<string, NodePosition> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const entries = Object.entries(raw as Record<string, unknown>);
+  const positions: Record<string, NodePosition> = {};
+
+  for (const [nodeId, value] of entries) {
+    if (!value || typeof value !== "object") continue;
+    const pos = value as Record<string, unknown>;
+    if (typeof pos.x !== "number" || typeof pos.y !== "number") continue;
+    positions[nodeId] = {
+      x: pos.x,
+      y: pos.y,
+      ...(typeof pos.pinned === "boolean" ? { pinned: pos.pinned } : {}),
+    };
+  }
+
+  return Object.keys(positions).length > 0 ? positions : null;
+}
+
+function hydrateViewport(raw: unknown): Viewport {
+  if (!raw || typeof raw !== "object") {
+    return { x: 0, y: 0, zoom: 1 };
+  }
+  const viewport = raw as Record<string, unknown>;
+  return {
+    x: typeof viewport.x === "number" ? viewport.x : 0,
+    y: typeof viewport.y === "number" ? viewport.y : 0,
+    zoom: typeof viewport.zoom === "number" ? viewport.zoom : 1,
+  };
 }

@@ -55,6 +55,7 @@ function FlowEdge({
   selected,
 }: EdgeProps<FlowEdgeType>) {
   const edgeType = data?.edgeType ?? "normal";
+  const unresolvedCount = data?.comments?.filter((comment) => !comment.resolved).length ?? 0;
   const themeColors = useThemeColors();
   const { phaseBoundaries } = useLayoutContext();
   const { updateEdgeLabel } = useEditContext();
@@ -108,7 +109,7 @@ function FlowEdge({
     }
   }
 
-  let strokeColor = themeColors.arrow.default;
+  let strokeColor: string = themeColors.arrow.default;
   let strokeWidth = 1.2;
   let strokeDasharray: string | undefined;
   let markerEnd = "url(#arrow-default)";
@@ -170,55 +171,81 @@ function FlowEdge({
         }}
         markerEnd={markerEnd}
       />
-      {(data?.edgeLabel || editingLabel) && (
+      {(data?.edgeLabel || editingLabel || unresolvedCount > 0) && (
         <EdgeLabelRenderer>
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: FONT.edgeLabel.size,
-              fontFamily: FONT_FAMILY,
-              color: selected ? SELECTED_COLOR : themeColors.sub.text,
-              fontWeight: selected ? 700 : FONT.edgeLabel.weight,
-              pointerEvents: "all",
-              background: themeColors.edgeLabelBg,
-              padding: "1px 4px",
-              borderRadius: 2,
-              border: selected || editingLabel
-                ? `1px solid ${editingLabel ? "#3b82f6" : SELECTED_COLOR}`
-                : "none",
-            }}
-            className="nodrag nopan"
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              handleLabelDoubleClick();
-            }}
-          >
-            {editingLabel ? (
-              <input
-                ref={editRef}
-                className="bg-transparent outline-none text-center"
+          <>
+            {(data?.edgeLabel || editingLabel) && (
+              <div
                 style={{
+                  position: "absolute",
+                  transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                   fontSize: FONT.edgeLabel.size,
                   fontFamily: FONT_FAMILY,
-                  fontWeight: FONT.edgeLabel.weight,
-                  color: "inherit",
-                  width: Math.max(40, editValue.length * 7 + 16),
-                  padding: 0,
-                  lineHeight: 1.4,
+                  color: selected ? SELECTED_COLOR : themeColors.sub.text,
+                  fontWeight: selected ? 700 : FONT.edgeLabel.weight,
+                  pointerEvents: "all",
+                  background: themeColors.edgeLabelBg,
+                  padding: "1px 4px",
+                  borderRadius: 2,
+                  border: selected || editingLabel
+                    ? `1px solid ${editingLabel ? "#3b82f6" : SELECTED_COLOR}`
+                    : "none",
                 }}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitLabelEdit();
-                  if (e.key === "Escape") setEditingLabel(false);
+                className="nodrag nopan"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  handleLabelDoubleClick();
                 }}
-                onBlur={commitLabelEdit}
-              />
-            ) : (
-              data?.edgeLabel
+              >
+                {editingLabel ? (
+                  <input
+                    ref={editRef}
+                    className="bg-transparent outline-none text-center"
+                    style={{
+                      fontSize: FONT.edgeLabel.size,
+                      fontFamily: FONT_FAMILY,
+                      fontWeight: FONT.edgeLabel.weight,
+                      color: "inherit",
+                      width: Math.max(40, editValue.length * 7 + 16),
+                      padding: 0,
+                      lineHeight: 1.4,
+                    }}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitLabelEdit();
+                      if (e.key === "Escape") setEditingLabel(false);
+                    }}
+                    onBlur={commitLabelEdit}
+                  />
+                ) : (
+                  data?.edgeLabel
+                )}
+              </div>
             )}
-          </div>
+            {unresolvedCount > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  transform: `translate(-50%, -50%) translate(${labelX + 14}px,${labelY - 12}px)`,
+                  width: 18,
+                  height: 18,
+                  borderRadius: "999px",
+                  background: "#ef4444",
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                  boxShadow: "0 0 0 1px rgba(255,255,255,0.9)",
+                }}
+              >
+                {unresolvedCount}
+              </div>
+            )}
+          </>
         </EdgeLabelRenderer>
       )}
     </>

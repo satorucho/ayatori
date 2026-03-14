@@ -5,6 +5,8 @@ import type {
   Lane,
   Phase,
   EdgeType,
+  FlowLayout,
+  NodePosition,
 } from "../types/schema.ts";
 import { getDefaultStyle } from "./defaults.ts";
 
@@ -14,15 +16,23 @@ import { getDefaultStyle } from "./defaults.ts";
  */
 export interface SparseSchema {
   schemaVersion?: "1";
-  meta: SparseSchema["meta"];
+  meta: SparseMeta;
   lanes: SparseLane[];
   phases?: SparsePhase[];
   nodes: SparseNode[];
   edges: SparseEdge[];
-  layout?: null;
+  layout?: SparseLayout;
   designNotes?: string[];
   openQuestions?: string[];
 }
+
+type SparseMeta = {
+  name: string;
+  purpose: string;
+  granularity: FlowChartSchema["meta"]["granularity"];
+  version: string;
+  subtitle?: string;
+};
 
 type SparseLane = { id: string; label: string; order?: number };
 type SparsePhase = { id: string; label: string; order?: number };
@@ -50,6 +60,11 @@ type SparseEdge = {
   comments?: FlowEdge["comments"];
 };
 
+type SparseLayout = {
+  positions: Record<string, NodePosition>;
+  viewport: FlowLayout["viewport"];
+};
+
 const EDGE_TYPE_LABELS: Partial<Record<EdgeType, string>> = {
   yes: "Yes",
   no: "No",
@@ -72,6 +87,10 @@ export function dehydrateSchema(schema: FlowChartSchema): Record<string, unknown
 
   result.nodes = schema.nodes.map((node) => dehydrateNode(node));
   result.edges = schema.edges.map((edge) => dehydrateEdge(edge));
+
+  if (schema.layout !== null) {
+    result.layout = dehydrateLayout(schema.layout);
+  }
 
   if (schema.designNotes.length > 0) {
     result.designNotes = schema.designNotes;
@@ -182,4 +201,11 @@ function dehydrateEdge(edge: FlowEdge): Record<string, unknown> {
   }
 
   return result;
+}
+
+function dehydrateLayout(layout: FlowLayout): SparseLayout {
+  return {
+    positions: layout.positions,
+    viewport: layout.viewport,
+  };
 }
