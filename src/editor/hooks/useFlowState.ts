@@ -188,12 +188,17 @@ export function useFlowState(initialSchema: FlowChartSchema) {
     setSchema((prev) => ({ ...prev, layout: newLayout }));
   }, [schema, setSchema, setNodes, setEdges]);
 
+  const runAutoLayoutRef = useRef(runAutoLayout);
+  useEffect(() => {
+    runAutoLayoutRef.current = runAutoLayout;
+  }, [runAutoLayout]);
+
   useEffect(() => {
     if (relayoutTick === 0) return;
     queueMicrotask(() => {
-      void runAutoLayout();
+      void runAutoLayoutRef.current();
     });
-  }, [relayoutTick, runAutoLayout]);
+  }, [relayoutTick]);
 
   const updateSchema = useCallback(
     (updater: (prev: FlowChartSchema) => FlowChartSchema) => {
@@ -213,15 +218,11 @@ export function useFlowState(initialSchema: FlowChartSchema) {
     [setSchema, setNodes, setEdges, requestRelayout],
   );
 
-  const exportJSON = useCallback(() => {
-    return JSON.stringify(schema, null, 2);
-  }, [schema]);
-
   const exportYAML = useCallback(() => {
     return schemaToYaml(schema);
   }, [schema]);
 
-  const importJSON = useCallback(
+  const importSchema = useCallback(
     (text: string): ImportSchemaResult => {
       const parsedResult = parseSchemaText(text);
       if (!parsedResult.ok) {
@@ -369,7 +370,7 @@ export function useFlowState(initialSchema: FlowChartSchema) {
         return;
       }
 
-      // Auto-layout mode: always snap back to calculated positions
+      // Auto-layout mode: snap back to calculated positions
       requestRelayout();
     },
     [setSchema, requestRelayout],
@@ -585,9 +586,8 @@ export function useFlowState(initialSchema: FlowChartSchema) {
     schema,
     updateSchema,
     runAutoLayout,
-    exportJSON,
     exportYAML,
-    importJSON,
+    importSchema,
     addNode,
     swapLanes,
     addLane,

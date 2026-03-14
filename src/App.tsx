@@ -101,7 +101,7 @@ export default function App() {
   const handleFileOpen = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json,.yaml,.yml";
+    input.accept = ".yaml,.yml";
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
@@ -166,7 +166,7 @@ export default function App() {
             onClick={handleFileOpen}
             className="w-full px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
           >
-            ファイルを開く（JSON / YAML）
+            ファイルを開く（YAML）
           </button>
           <div className="pt-2">
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
@@ -174,14 +174,14 @@ export default function App() {
             </p>
             <div className="flex gap-2 justify-center">
               <button
-                onClick={() => handleLoadSample("simple-flow.json")}
+                onClick={() => handleLoadSample("simple-flow.yaml")}
                 disabled={loading}
                 className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 簡単な承認フロー
               </button>
               <button
-                onClick={() => handleLoadSample("asis-flow.json")}
+                onClick={() => handleLoadSample("asis-flow.yaml")}
                 disabled={loading}
                 className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >

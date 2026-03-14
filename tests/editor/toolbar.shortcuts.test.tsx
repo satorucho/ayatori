@@ -28,26 +28,26 @@ describe("Toolbar keyboard shortcuts", () => {
     anchorClickSpy.mockClear();
   });
 
-  it("Ctrl/Cmd+S でJSON保存が実行される", () => {
-    const onExportJSON = vi.fn(() => '{"schemaVersion":"1"}');
+  it("Ctrl/Cmd+S でYAML保存が実行される", () => {
+    const onExportYAML = vi.fn(() => "schemaVersion: '1'\n");
     const onNotify = vi.fn();
 
     render(
       <Toolbar
         onAutoLayout={async () => {}}
-        onExportJSON={onExportJSON}
-        onImportJSON={() => ({ ok: true as const })}
+        onExportYAML={onExportYAML}
+        onImportSchema={() => ({ ok: true as const })}
         onNotify={onNotify}
       />,
     );
 
     fireEvent.keyDown(window, { key: "s", ctrlKey: true });
 
-    expect(onExportJSON).toHaveBeenCalledTimes(1);
+    expect(onExportYAML).toHaveBeenCalledTimes(1);
     expect(anchorClickSpy).toHaveBeenCalledTimes(1);
     expect(onNotify).toHaveBeenCalledWith({
       type: "success",
-      message: "JSONを保存しました",
+      message: "YAMLを保存しました",
     });
   });
 
@@ -58,8 +58,8 @@ describe("Toolbar keyboard shortcuts", () => {
     render(
       <Toolbar
         onAutoLayout={onAutoLayout}
-        onExportJSON={() => '{"schemaVersion":"1"}'}
-        onImportJSON={() => ({ ok: true as const })}
+        onExportYAML={() => "schemaVersion: '1'\n"}
+        onImportSchema={() => ({ ok: true as const })}
         freeDrawMode
         onNotify={onNotify}
       />,
@@ -82,8 +82,8 @@ describe("Toolbar keyboard shortcuts", () => {
     render(
       <Toolbar
         onAutoLayout={async () => {}}
-        onExportJSON={() => '{"schemaVersion":"1"}'}
-        onImportJSON={() => ({ ok: true as const })}
+        onExportYAML={() => "schemaVersion: '1'\n"}
+        onImportSchema={() => ({ ok: true as const })}
         onToggleSidebar={onToggleSidebar}
       />,
     );
@@ -93,4 +93,3 @@ describe("Toolbar keyboard shortcuts", () => {
     expect(onToggleSidebar).toHaveBeenCalledTimes(1);
   });
 });
-

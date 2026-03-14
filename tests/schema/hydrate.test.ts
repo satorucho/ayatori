@@ -9,21 +9,21 @@ import type { FlowChartSchema } from "../../src/types/schema.ts";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
-function loadSampleJson(filename: string): FlowChartSchema {
+function loadSampleYaml(filename: string): FlowChartSchema {
   const path = resolve(currentDir, "../../public/sample-flows", filename);
-  return JSON.parse(readFileSync(path, "utf-8")) as FlowChartSchema;
+  return yamlToSchema(readFileSync(path, "utf-8"));
 }
 
 describe("dehydrate → hydrate ラウンドトリップ", () => {
-  it("simple-flow.json が dehydrate → hydrate で復元される", () => {
-    const original = loadSampleJson("simple-flow.json");
+  it("simple-flow.yaml が dehydrate → hydrate で復元される", () => {
+    const original = loadSampleYaml("simple-flow.yaml");
     const sparse = dehydrateSchema(original);
     const restored = hydrateSchema(sparse);
     expect(restored).toEqual(original);
   });
 
-  it("asis-flow.json が dehydrate → hydrate で復元される", () => {
-    const original = loadSampleJson("asis-flow.json");
+  it("asis-flow.yaml が dehydrate → hydrate で復元される", () => {
+    const original = loadSampleYaml("asis-flow.yaml");
     const sparse = dehydrateSchema(original);
     const restored = hydrateSchema(sparse);
     expect(restored).toEqual(original);
@@ -31,15 +31,15 @@ describe("dehydrate → hydrate ラウンドトリップ", () => {
 });
 
 describe("dehydrate のトークン削減", () => {
-  it("simple-flow.json の sparse 版は元より小さい", () => {
-    const original = loadSampleJson("simple-flow.json");
+  it("simple-flow.yaml の sparse 版は元より小さい", () => {
+    const original = loadSampleYaml("simple-flow.yaml");
     const fullJson = JSON.stringify(original);
     const sparseJson = JSON.stringify(dehydrateSchema(original));
     expect(sparseJson.length).toBeLessThan(fullJson.length * 0.7);
   });
 
-  it("asis-flow.json の sparse 版は元より小さい", () => {
-    const original = loadSampleJson("asis-flow.json");
+  it("asis-flow.yaml の sparse 版は元より小さい", () => {
+    const original = loadSampleYaml("asis-flow.yaml");
     const fullJson = JSON.stringify(original);
     const sparseJson = JSON.stringify(dehydrateSchema(original));
     expect(sparseJson.length).toBeLessThan(fullJson.length * 0.7);
@@ -47,22 +47,22 @@ describe("dehydrate のトークン削減", () => {
 });
 
 describe("YAML ラウンドトリップ", () => {
-  it("simple-flow.json → YAML → FlowChartSchema で復元される", () => {
-    const original = loadSampleJson("simple-flow.json");
+  it("simple-flow.yaml → YAML → FlowChartSchema で復元される", () => {
+    const original = loadSampleYaml("simple-flow.yaml");
     const yaml = schemaToYaml(original);
     const restored = yamlToSchema(yaml);
     expect(restored).toEqual(original);
   });
 
-  it("asis-flow.json → YAML → FlowChartSchema で復元される", () => {
-    const original = loadSampleJson("asis-flow.json");
+  it("asis-flow.yaml → YAML → FlowChartSchema で復元される", () => {
+    const original = loadSampleYaml("asis-flow.yaml");
     const yaml = schemaToYaml(original);
     const restored = yamlToSchema(yaml);
     expect(restored).toEqual(original);
   });
 
-  it("YAML は元 JSON より短い", () => {
-    const original = loadSampleJson("simple-flow.json");
+  it("YAML は JSON.stringify より短い", () => {
+    const original = loadSampleYaml("simple-flow.yaml");
     const fullJson = JSON.stringify(original, null, 2);
     const yaml = schemaToYaml(original);
     expect(yaml.length).toBeLessThan(fullJson.length * 0.7);

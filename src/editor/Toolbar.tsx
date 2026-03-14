@@ -5,9 +5,8 @@ import { Switch } from "../components/ui/Switch.tsx";
 
 interface ToolbarProps {
   onAutoLayout: () => Promise<void>;
-  onExportJSON: () => string;
-  onExportYAML?: () => string;
-  onImportJSON: (json: string) => { ok: true } | { ok: false; error: string };
+  onExportYAML: () => string;
+  onImportSchema: (text: string) => { ok: true } | { ok: false; error: string };
   onExportSVG?: () => void;
   onExportHTML?: () => void;
   onExportPNG?: () => void;
@@ -20,6 +19,8 @@ interface ToolbarProps {
   onToggleFreeDrawMode?: () => void;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  yamlEditorOpen?: boolean;
+  onToggleYamlEditor?: () => void;
   onAddLane?: () => void;
   onAddPhase?: () => void;
   onNotify?: (notice: { type: "success" | "error"; message: string }) => void;
@@ -108,9 +109,8 @@ function DropdownMenu({
 
 export default function Toolbar({
   onAutoLayout,
-  onExportJSON,
   onExportYAML,
-  onImportJSON,
+  onImportSchema,
   onExportSVG,
   onExportHTML,
   onExportPNG,
@@ -123,6 +123,8 @@ export default function Toolbar({
   onToggleFreeDrawMode,
   sidebarOpen,
   onToggleSidebar,
+  yamlEditorOpen,
+  onToggleYamlEditor,
   onAddLane,
   onAddPhase,
   onNotify,
@@ -149,7 +151,7 @@ export default function Toolbar({
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        const result = onImportJSON(reader.result as string);
+        const result = onImportSchema(reader.result as string);
         if (!result.ok) {
           onNotify?.({ type: "error", message: result.error });
           return;
@@ -159,23 +161,10 @@ export default function Toolbar({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [onImportJSON, onNotify],
+    [onImportSchema, onNotify],
   );
 
-  const handleSaveJSON = useCallback(() => {
-    const json = onExportJSON();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "flowchart.json";
-    a.click();
-    URL.revokeObjectURL(url);
-    onNotify?.({ type: "success", message: "JSONを保存しました" });
-  }, [onExportJSON, onNotify]);
-
   const handleSaveYAML = useCallback(() => {
-    if (!onExportYAML) return;
     const yaml = onExportYAML();
     const blob = new Blob([yaml], { type: "text/yaml" });
     const url = URL.createObjectURL(blob);
@@ -227,26 +216,13 @@ export default function Toolbar({
     { type: "divider" },
     {
       type: "action",
-      label: "JSONで保存",
+      label: "YAMLで保存",
       shortcut: "⌘S",
       onClick: () => {
-        handleSaveJSON();
+        handleSaveYAML();
         close();
       },
     },
-    ...(onExportYAML
-      ? [
-          {
-            type: "action" as const,
-            label: "YAMLで保存（コンパクト）",
-            shortcut: "⌘⇧S",
-            onClick: () => {
-              handleSaveYAML();
-              close();
-            },
-          },
-        ]
-      : []),
     { type: "divider" },
     ...(onExportSVG
       ? [
@@ -374,6 +350,32 @@ export default function Toolbar({
   ];
 
   const viewItems: MenuItem[] = [
+    ...(onToggleYamlEditor
+      ? [
+          {
+            type: "action" as const,
+            label: yamlEditorOpen ? "\u2713 YAMLエディタ" : "\u2003 YAMLエディタ",
+            onClick: () => {
+              onToggleYamlEditor();
+              close();
+            },
+          },
+        ]
+      : []),
+    ...(onToggleSidebar
+      ? [
+          {
+            type: "action" as const,
+            label: sidebarOpen ? "\u2713 サイドバー" : "\u2003 サイドバー",
+            shortcut: "⌘B",
+            onClick: () => {
+              onToggleSidebar();
+              close();
+            },
+          },
+        ]
+      : []),
+    { type: "divider" },
     {
       type: "action",
       label: isDark ? "\u2713 ダークモード" : "\u2003 ダークモード",
@@ -467,11 +469,7 @@ export default function Toolbar({
       }
       if (key === "s") {
         e.preventDefault();
-        if (e.shiftKey && onExportYAML) {
-          handleSaveYAML();
-        } else {
-          handleSaveJSON();
-        }
+        handleSaveYAML();
         return;
       }
       if (key === "l") {
@@ -490,9 +488,7 @@ export default function Toolbar({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
-    handleSaveJSON,
     handleSaveYAML,
-    onExportYAML,
     freeDrawMode,
     onToggleSidebar,
     runAutoLayoutWithNotice,
@@ -503,7 +499,7 @@ export default function Toolbar({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".json,.yaml,.yml"
+        accept=".yaml,.yml"
         className="hidden"
         onChange={handleFileChange}
       />

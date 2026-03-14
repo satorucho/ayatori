@@ -343,8 +343,8 @@ function resolveYConflicts(
   const nodeMap = new Map(schema.nodes.map((n) => [n.id, n]));
   const topoOrder = topologicalSort(schema, positions);
 
-  // Track the maximum bottom Y for each lane
-  const laneBottoms = new Map<string, number>();
+  // Track placed node positions per lane for overlap detection
+  const placedInLane = new Map<string, { y: number; halfH: number }[]>();
 
   // Build predecessor map for edge constraints
   const predecessors = new Map<string, string[]>();
@@ -365,8 +365,8 @@ function resolveYConflicts(
 
     const halfH = getNodeHalfHeight(node, size);
 
-    // Constraint 1: must be below all predecessors + spacing
-    let minY = pos.y;
+    // Constraint 1: compact toward predecessors
+    let minY = -Infinity;
     for (const predId of predecessors.get(nodeId) ?? []) {
       if (shortBranchIds.has(predId)) continue;
       const predNode = nodeMap.get(predId);
@@ -376,23 +376,33 @@ function resolveYConflicts(
 
       const predHalfH = getNodeHalfHeight(predNode, predSize);
       const predBottom = predPos.y + predHalfH;
-      const requiredY = predBottom + SPACING.M_VERTICAL + halfH;
-      minY = Math.max(minY, requiredY);
+      minY = Math.max(minY, predBottom + SPACING.M_VERTICAL + halfH);
     }
 
-    // Constraint 2: must not overlap previous nodes in the same lane
-    const laneBottom = laneBottoms.get(node.lane);
-    if (laneBottom !== undefined) {
-      const requiredY = laneBottom + SPACING.M_VERTICAL + halfH;
-      minY = Math.max(minY, requiredY);
+    // Root nodes (no predecessors): use ELK position as baseline
+    if (minY === -Infinity) {
+      minY = pos.y;
+    }
+
+    // Constraint 2: avoid actual overlaps with placed nodes in the same lane
+    const lanePeers = placedInLane.get(node.lane) ?? [];
+    for (const peer of lanePeers) {
+      const currentTop = minY - halfH;
+      const currentBottom = minY + halfH;
+      const peerTop = peer.y - peer.halfH;
+      const peerBottom = peer.y + peer.halfH;
+
+      if (
+        currentTop < peerBottom + SPACING.M_VERTICAL &&
+        currentBottom > peerTop - SPACING.M_VERTICAL
+      ) {
+        minY = Math.max(minY, peerBottom + SPACING.M_VERTICAL + halfH);
+      }
     }
 
     pos.y = minY;
-    const newBottom = pos.y + halfH;
-    laneBottoms.set(
-      node.lane,
-      Math.max(laneBottoms.get(node.lane) ?? -Infinity, newBottom),
-    );
+    if (!placedInLane.has(node.lane)) placedInLane.set(node.lane, []);
+    placedInLane.get(node.lane)!.push({ y: pos.y, halfH });
   }
 }
 

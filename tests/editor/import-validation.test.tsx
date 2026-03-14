@@ -27,7 +27,7 @@ describe("Toolbar import validation feedback", () => {
   });
 
   it("不正ファイル時にエラー通知を出す", async () => {
-    const onImportJSON = vi.fn(() => ({
+    const onImportSchema = vi.fn(() => ({
       ok: false as const,
       error: "スキーマ検証に失敗しました",
     }));
@@ -36,21 +36,21 @@ describe("Toolbar import validation feedback", () => {
     const { container } = render(
       <Toolbar
         onAutoLayout={async () => {}}
-        onExportJSON={() => "{}"}
-        onImportJSON={onImportJSON}
+        onExportYAML={() => ""}
+        onImportSchema={onImportSchema}
         onNotify={onNotify}
       />,
     );
 
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['{"invalid":true}'], "invalid.json", {
-      type: "application/json",
+    const file = new File(['{"invalid":true}'], "invalid.yaml", {
+      type: "text/yaml",
     });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(onImportJSON).toHaveBeenCalledTimes(1);
+      expect(onImportSchema).toHaveBeenCalledTimes(1);
       expect(onNotify).toHaveBeenCalledWith({
         type: "error",
         message: "スキーマ検証に失敗しました",
@@ -59,27 +59,27 @@ describe("Toolbar import validation feedback", () => {
   });
 
   it("正常ファイル時に成功通知を出す", async () => {
-    const onImportJSON = vi.fn(() => ({ ok: true as const }));
+    const onImportSchema = vi.fn(() => ({ ok: true as const }));
     const onNotify = vi.fn();
 
     const { container } = render(
       <Toolbar
         onAutoLayout={async () => {}}
-        onExportJSON={() => "{}"}
-        onImportJSON={onImportJSON}
+        onExportYAML={() => ""}
+        onImportSchema={onImportSchema}
         onNotify={onNotify}
       />,
     );
 
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['{"schemaVersion":"1"}'], "valid.json", {
-      type: "application/json",
+    const file = new File(["schemaVersion: '1'\n"], "valid.yaml", {
+      type: "text/yaml",
     });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(onImportJSON).toHaveBeenCalledTimes(1);
+      expect(onImportSchema).toHaveBeenCalledTimes(1);
       expect(onNotify).toHaveBeenCalledWith({
         type: "success",
         message: "ファイルを読み込みました",
@@ -87,4 +87,3 @@ describe("Toolbar import validation feedback", () => {
     });
   });
 });
-

@@ -18,6 +18,7 @@ import { exportToSVG } from "../export/to-svg.ts";
 import { exportToHTML } from "../export/to-html.ts";
 import { exportToPNG } from "../export/to-png.ts";
 import Sidebar from "./Sidebar.tsx";
+import YamlEditorPanel from "./YamlEditorPanel.tsx";
 import LaneOverlay from "./overlays/LaneOverlay.tsx";
 import PhaseOverlay from "./overlays/PhaseOverlay.tsx";
 import { LANE, PHASE, FONT, FONT_FAMILY } from "../layout/constants.ts";
@@ -101,9 +102,8 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     schema,
     updateSchema,
     runAutoLayout,
-    exportJSON,
     exportYAML,
-    importJSON,
+    importSchema,
     addNode,
     swapLanes,
     addLane,
@@ -129,6 +129,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [yamlEditorOpen, setYamlEditorOpen] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -175,11 +176,17 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
 
   const layoutCtx = useMemo(() => ({ phaseBoundaries }), [phaseBoundaries]);
 
-  const edgesWithReconnectable = useMemo(
+  const nodesWithSelection = useMemo(
+    () => nodes.map((n) => ({ ...n, selected: n.id === selectedNodeId })),
+    [nodes, selectedNodeId],
+  );
+
+  const edgesWithSelection = useMemo(
     () =>
       edges.map((e) => ({
         ...e,
         reconnectable: e.id === selectedEdgeId,
+        selected: e.id === selectedEdgeId,
       })),
     [edges, selectedEdgeId],
   );
@@ -362,9 +369,8 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
       <ArrowDefs />
       <Toolbar
         onAutoLayout={runAutoLayout}
-        onExportJSON={exportJSON}
         onExportYAML={exportYAML}
-        onImportJSON={importJSON}
+        onImportSchema={importSchema}
         onExportSVG={handleExportSVG}
         onExportHTML={handleExportHTML}
         onExportPNG={handleExportPNG}
@@ -377,11 +383,19 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         onToggleFreeDrawMode={() => setFreeDrawMode(!freeDrawMode)}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        yamlEditorOpen={yamlEditorOpen}
+        onToggleYamlEditor={() => setYamlEditorOpen(!yamlEditorOpen)}
         onAddLane={() => addLane()}
         onAddPhase={() => addPhase()}
         onNotify={pushNotice}
       />
       <div className="flex-1 flex overflow-hidden">
+        {yamlEditorOpen && (
+          <YamlEditorPanel
+            schema={schema}
+            onImportSchema={importSchema}
+          />
+        )}
         <div className="flex-1 relative">
           {notice && (
             <div className="absolute top-3 right-3 z-[1200] pointer-events-none">
@@ -399,8 +413,8 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
           <EditContext.Provider value={editCtx}>
             <LayoutContext.Provider value={layoutCtx}>
               <ReactFlow
-                nodes={nodes}
-                edges={edgesWithReconnectable}
+                nodes={nodesWithSelection}
+                edges={edgesWithSelection}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
