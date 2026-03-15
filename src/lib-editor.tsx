@@ -83,9 +83,16 @@ function EmbedInner({
   const [error, setError] = useState<string | null>(null);
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
-  const { fitBounds, getNodes } = useReactFlow();
+  const { fitBounds, getNodes, getZoom } = useReactFlow();
   const initializedRef = useRef(false);
   const hasChanges = yamlText !== baseYaml;
+  const [editingNode, setEditingNode] = useState<{
+    id: string;
+    value: string;
+    rect: { x: number; y: number; w: number; h: number };
+    zoom: number;
+  } | null>(null);
+  const editNodeRef = useRef<HTMLTextAreaElement>(null);
 
   // Apply theme
   useEffect(() => {
@@ -115,6 +122,32 @@ function EmbedInner({
       return null;
     }
   }, [setNodes, setEdges]);
+
+  const applySchemaEdit = useCallback(
+    (updater: (prev: FlowChartSchema) => FlowChartSchema) => {
+      setSchema((prevSchema) => {
+        if (!prevSchema) return prevSchema;
+        const nextSchema = updater(prevSchema);
+        if (nextSchema === prevSchema) return prevSchema;
+
+        if (nextSchema.layout) {
+          const nextSizes = computeAllSizes(nextSchema);
+          setLayoutState(nextSchema.layout);
+          setNodes(schemaToReactFlowNodes(nextSchema, nextSchema.layout, nextSizes));
+          setEdges(schemaToReactFlowEdges(nextSchema, nextSchema.layout));
+          setLaneBoundaries(calculateLaneDividers(nextSchema.layout.positions, nextSchema, nextSizes));
+          setPhaseBoundaries(calculatePhaseDividers(nextSchema.layout.positions, nextSchema, nextSizes));
+        }
+
+        const normalized = schemaToYaml(nextSchema);
+        setYamlText(normalized);
+        onYamlChange?.(normalized);
+
+        return nextSchema;
+      });
+    },
+    [onYamlChange, setNodes, setEdges],
+  );
 
   // Initial load
   useEffect(() => {
@@ -170,6 +203,11 @@ function EmbedInner({
     });
   }, [onReady, yamlText, doLayout]);
 
+  useEffect(() => {
+    if (!editingNode) return;
+    setTimeout(() => editNodeRef.current?.focus(), 0);
+  }, [editingNode]);
+
   const handleYamlApply = useCallback(() => {
     try {
       const s = yamlToSchema(yamlText);
@@ -198,11 +236,101 @@ function EmbedInner({
     URL.revokeObjectURL(url);
   }, [hasChanges, schema, yamlText]);
 
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, rfNode: Node) => {
+      if (!editable) return;
+
+      const nodeData = rfNode.data as { shapeWidth?: number; shapeHeight?: number; nodeType?: string };
+      const nodeType = nodeData?.nodeType ?? "process";
+      const isDiamondOrEllipse = nodeType === "decision" || nodeType === "start" || nodeType === "end";
+      const nodeW = isDiamondOrEllipse ? (nodeData?.shapeWidth ?? 50) * 2 : (nodeData?.shapeWidth ?? 200);
+      const nodeH = isDiamondOrEllipse ? (nodeData?.shapeHeight ?? 50) * 2 : (nodeData?.shapeHeight ?? 40);
+      const centerX = rfNode.position.x + nodeW / 2;
+      const centerY = rfNode.position.y + nodeH / 2;
+
+      applySchemaEdit((prev) => {
+        const baseLayout = prev.layout ?? { positions: {}, viewport: { x: 0, y: 0, zoom: 1 } };
+        return {
+          ...prev,
+          layout: {
+            ...baseLayout,
+            positions: {
+              ...baseLayout.positions,
+              [rfNode.id]: {
+                ...baseLayout.positions[rfNode.id],
+                x: centerX,
+                y: centerY,
+                pinned: true,
+              },
+            },
+          },
+        };
+      });
+    },
+    [editable, applySchemaEdit],
+  );
+
+  const handleNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, rfNode: { id: string }) => {
+      if (!editable || !schema) return;
+      const node = schema.nodes.find((n) => n.id === rfNode.id);
+      if (!node) return;
+
+      const el = document.querySelector(
+        `.react-flow__node[data-id="${rfNode.id}"]`,
+      ) as HTMLElement | null;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+
+      setEditingNode({
+        id: rfNode.id,
+        value: node.label,
+        rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+        zoom: getZoom(),
+      });
+    },
+    [editable, schema, getZoom],
+  );
+
+  const commitNodeEdit = useCallback(() => {
+    if (!editingNode) return;
+    const nextLabel = editingNode.value.trim();
+    if (!nextLabel) {
+      setEditingNode(null);
+      return;
+    }
+
+    applySchemaEdit((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) =>
+        n.id === editingNode.id ? { ...n, label: nextLabel } : n,
+      ),
+    }));
+    setEditingNode(null);
+  }, [editingNode, applySchemaEdit]);
+
   const layoutCtx = useMemo(() => ({ phaseBoundaries }), [phaseBoundaries]);
   const editCtx = useMemo(() => ({
-    updateNodeLabel: () => {},
-    updateEdgeLabel: () => {},
-  }), []);
+    updateNodeLabel: (nodeId: string, label: string) => {
+      if (!editable) return;
+      applySchemaEdit((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === nodeId ? { ...n, label } : n,
+        ),
+      }));
+    },
+    updateEdgeLabel: (edgeId: string, label: string) => {
+      if (!editable) return;
+      const nextLabel = label.trim() || null;
+      applySchemaEdit((prev) => ({
+        ...prev,
+        edges: prev.edges.map((e) =>
+          e.id === edgeId ? { ...e, label: nextLabel } : e,
+        ),
+      }));
+    },
+  }), [editable, applySchemaEdit]);
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", fontFamily: FONT_FAMILY }}>
@@ -282,10 +410,13 @@ function EmbedInner({
                   edges={edges}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
+                  onNodeDragStop={editable ? handleNodeDragStop : undefined}
+                  onNodeDoubleClick={editable ? handleNodeDoubleClick : undefined}
+                  onPaneClick={() => setEditingNode(null)}
                   defaultEdgeOptions={{ type: "flowEdge" }}
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable={false}
+                  nodesDraggable={editable}
+                  nodesConnectable={editable}
+                  elementsSelectable={editable}
                   panOnDrag={true}
                   zoomOnScroll={true}
                   fitView={false}
@@ -308,6 +439,38 @@ function EmbedInner({
                 </ReactFlow>
               </LayoutContext.Provider>
             </EditContext.Provider>
+            {editingNode && (
+              <textarea
+                ref={editNodeRef}
+                className="fixed z-[9999] border border-blue-500 rounded outline-none text-center resize-none"
+                style={{
+                  left: editingNode.rect.x,
+                  top: editingNode.rect.y,
+                  width: editingNode.rect.w,
+                  height: editingNode.rect.h,
+                  fontSize: 13 * editingNode.zoom,
+                  fontWeight: 600,
+                  lineHeight: 1.4,
+                  padding: `${4 * editingNode.zoom}px ${8 * editingNode.zoom}px`,
+                  background: "rgba(255,255,255,0.96)",
+                  color: "#111827",
+                }}
+                value={editingNode.value}
+                onChange={(e) =>
+                  setEditingNode((prev) =>
+                    prev ? { ...prev, value: e.target.value } : null,
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    commitNodeEdit();
+                  }
+                  if (e.key === "Escape") setEditingNode(null);
+                }}
+                onBlur={commitNodeEdit}
+              />
+            )}
           </>
         )}
       </div>
