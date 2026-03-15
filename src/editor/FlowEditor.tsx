@@ -26,6 +26,23 @@ import { useTheme, useThemeColors } from "../theme/useTheme.ts";
 import { LayoutContext } from "./contexts/LayoutContext.ts";
 import { EditContext } from "./contexts/EditContext.ts";
 
+function appendDebugLog(payload: {
+  hypothesisId: string;
+  location: string;
+  message: string;
+  data: Record<string, unknown>;
+  timestamp: number;
+}) {
+  try {
+    // @ts-expect-error debug-only require guard
+    if (typeof require !== "function") return;
+    // @ts-expect-error debug-only require guard
+    require("fs").appendFileSync("/opt/cursor/logs/debug.log", `${JSON.stringify(payload)}\n`);
+  } catch {
+    // no-op in browser-only runtime
+  }
+}
+
 export interface FlowEditorProps {
   initialSchema: FlowChartSchema;
   editable?: boolean;
@@ -145,9 +162,24 @@ function FlowEditorInner({
     message: string;
   } | null>(null);
   const initialLayoutDone = useRef(false);
+  const debugSeqRef = useRef(0);
   const { fitBounds, getNodes, getZoom } = useReactFlow();
 
   useEffect(() => {
+    // #region agent log
+    appendDebugLog({
+      hypothesisId: "B",
+      location: "src/editor/FlowEditor.tsx:onSchemaChange-effect",
+      message: "FlowEditor emits schema change",
+      data: {
+        seq: (debugSeqRef.current += 1),
+        hasLayout: schema.layout !== null,
+        nodeCount: schema.nodes.length,
+        edgeCount: schema.edges.length,
+      },
+      timestamp: Date.now(),
+    });
+    // #endregion
     onSchemaChange?.(schema);
   }, [schema, onSchemaChange]);
 
@@ -306,6 +338,19 @@ function FlowEditorInner({
       return;
     }
     if (editingNode && editingNode.value.trim()) {
+      // #region agent log
+      appendDebugLog({
+        hypothesisId: "A",
+        location: "src/editor/FlowEditor.tsx:commitNodeEdit",
+        message: "Node label commit requested",
+        data: {
+          nodeId: editingNode.id,
+          trimmedLabel: editingNode.value.trim(),
+          hasLayoutAtCommit: schema.layout !== null,
+        },
+        timestamp: Date.now(),
+      });
+      // #endregion
       updateSchema((prev) => ({
         ...prev,
         nodes: prev.nodes.map((n) =>
