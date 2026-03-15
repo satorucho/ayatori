@@ -3,86 +3,74 @@ name: ayatori-create-artifact
 description: Create a Claude Artifact that renders and edits an Ayatori business flowchart. Use when asked to create a visual flowchart artifact, interactive flow diagram, or Ayatori-powered Claude Artifact.
 ---
 
-# Ayatori Claude Artifact の作成
+# Ayatori Claude Artifact の作成（最新）
 
-Ayatori ライブラリを使って、Claude Artifact 内で業務フローチャートを表示・編集・ダウンロードできるインタラクティブなアーティファクトを作成する。
+Ayatori の IIFE ライブラリを使って、Claude Artifact 内で業務フローチャートを表示・編集する。
+
+## 現在の埋め込み仕様（重要）
+
+- 埋め込み版は **通常版と同等のフルエディタUI**（メニューバー / サイドバー / YAMLパネル）で動作する。
+- `editable: true` のとき、初期YAMLから変更があると左上に **「編集されています」** バナーが表示される。
+- `editable: false` のとき、編集操作は無効化され、閲覧専用として動作する。
+- `onYamlChange` には、編集結果の **正規化済み YAML** が渡される。
 
 ## 仕組み
 
-1. Ayatori の IIFE バンドル (`ayatori.iife.js`) を `<script>` タグで読み込む
-2. インラインの YAML でフローチャートを定義する
-3. `Ayatori.render()` でコンテナにレンダリングする
+1. Ayatori の IIFE バンドル（`ayatori.iife.js`）を読み込む
+2. YAML文字列を用意する
+3. `Ayatori.render()` でコンテナに描画する
 
-バンドルには React、React Flow、ELK.js、YAML パーサー、全ノード/エッジコンポーネント、CSS がすべて含まれている（外部依存なし）。
+バンドルには React / React Flow / ELK.js / YAML パーサー / 必要CSS が含まれる。
 
-## ホスティング URL
-
-ビルド済みバンドルは以下のいずれかで配信する:
+## 配布先 URL
 
 - GitHub Pages: `https://satorucho.github.io/ayatori/ayatori.iife.js`
 - CDN（npm publish 後）: `https://unpkg.com/ayatori/dist-lib/ayatori.iife.js`
-- セルフホスト: `dist-lib/ayatori.iife.js` をビルドして任意のサーバーに配置
+- セルフホスト: `dist-lib/ayatori.iife.js`
 
-> **注意**: Claude Artifact では外部スクリプトの読み込みに制限がある。Artifact の `type: "text/html"` で `<script src="...">` が使えない場合は、バンドル全体をインラインで埋め込む必要がある。その場合は `npm run build:lib` で生成された `dist-lib/ayatori.iife.js` の内容を `<script>` タグ内にペーストする。
+> 注意: Claude Artifact の実行環境や CSP により、外部 `<script src="...">` が制限される場合がある。  
+> その場合は `npm run build:lib` で生成した `dist-lib/ayatori.iife.js` をインライン `<script>` に埋め込む。
 
 ## Claude Artifact テンプレート
 
-### React (tsx) Artifact
+### React (tsx) Artifact（推奨）
 
-Claude Artifact の `type: "application/vnd.ant.react"` で作成する場合:
+`type: "application/vnd.ant.react"` 向け。  
+インスタンスの `destroy()` まで含めた安全なテンプレート。
 
 ```tsx
-// Ayatori Flowchart Artifact
-// このアーティファクトは Ayatori ライブラリを使って業務フローチャートを
-// インタラクティブに表示・編集できる。
-
 import { useEffect, useRef, useState } from "react";
 
 const AYATORI_CDN = "https://satorucho.github.io/ayatori/ayatori.iife.js";
 
 const FLOW_YAML = `
 meta:
-  name: 簡単な承認フロー
-  purpose: 申請の承認が完了するまで
+  name: 埋め込みデモ
+  purpose: 入力が完了するまで
   granularity: business
-  version: 2026-03-14
+  version: 2026-03-15
 lanes:
-  - id: lane-applicant
-    label: 申請者
-  - id: lane-approver
-    label: 承認者
+  - id: lane-user
+    label: ユーザー
+  - id: lane-system
+    label: システム
 nodes:
   - id: n1
     type: start
-    label: 申請開始
-    lane: lane-applicant
+    label: 開始
+    lane: lane-user
   - id: n2
     type: process
-    label: 申請書を作成する
-    lane: lane-applicant
-    sublabel: 申請システム
+    label: 入力する
+    lane: lane-user
   - id: n3
-    type: decision
-    label: |-
-      内容に
-      不備はないか
-    lane: lane-approver
-    decisionMeta:
-      branchNumber: 1
+    type: process
+    label: 保存する
+    lane: lane-system
   - id: n4
-    type: process
-    label: 差し戻す
-    lane: lane-approver
-    style: orange
-  - id: n5
-    type: process
-    label: 承認する
-    lane: lane-approver
-    sublabel: 申請システム
-  - id: n6
     type: end
     label: 完了
-    lane: lane-approver
+    lane: lane-system
 edges:
   - id: e1
     source: n1
@@ -93,23 +81,17 @@ edges:
   - id: e3
     source: n3
     target: n4
-    type: no
-  - id: e4
-    source: n3
-    target: n5
-    type: yes
-  - id: e5
-    source: n5
-    target: n6
-`;
+`.trim();
 
 export default function AyatoriArtifact() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<any>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const baseYamlRef = useRef(FLOW_YAML);
 
   useEffect(() => {
-    // Load Ayatori library
     if ((window as any).Ayatori) {
       setLoaded(true);
       return;
@@ -117,49 +99,86 @@ export default function AyatoriArtifact() {
     const script = document.createElement("script");
     script.src = AYATORI_CDN;
     script.onload = () => setLoaded(true);
-    script.onerror = () => setError("Ayatori ライブラリの読み込みに失敗しました");
+    script.onerror = () =>
+      setError("Ayatori ライブラリの読み込みに失敗しました");
     document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
   }, []);
 
   useEffect(() => {
     if (!loaded || !containerRef.current) return;
     const ayatori = (window as any).Ayatori;
-    if (!ayatori) return;
+    if (!ayatori?.render) {
+      setError("Ayatori API が見つかりません");
+      return;
+    }
 
-    ayatori.render({
+    instanceRef.current?.destroy?.();
+    instanceRef.current = ayatori.render({
       container: containerRef.current,
-      yaml: FLOW_YAML.trim(),
+      yaml: FLOW_YAML,
       editable: true,
       theme: "auto",
+      onYamlChange: (nextYaml: string) => {
+        setDirty(nextYaml !== baseYamlRef.current);
+      },
     });
+
+    return () => {
+      instanceRef.current?.destroy?.();
+      instanceRef.current = null;
+    };
   }, [loaded]);
 
-  if (error) return <div style={{ padding: 20, color: "red" }}>{error}</div>;
-  if (!loaded) return <div style={{ padding: 20 }}>読み込み中...</div>;
+  if (error) return <div style={{ padding: 16, color: "crimson" }}>{error}</div>;
+  if (!loaded) return <div style={{ padding: 16 }}>読み込み中...</div>;
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height: "100vh" }}
-    />
+    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
+      {dirty && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            zIndex: 20,
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "4px 10px",
+            borderRadius: 999,
+            border: "1px solid #f59e0b",
+            background: "#fffbeb",
+            color: "#92400e",
+          }}
+        >
+          外部ステータス: 編集されています
+        </div>
+      )}
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+    </div>
   );
 }
 ```
 
 ### HTML Artifact
 
-Claude Artifact の `type: "text/html"` で作成する場合:
+`type: "text/html"` 向け。
 
 ```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ayatori Flowchart</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ayatori Artifact</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #root { width: 100%; height: 100%; }
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -168,26 +187,26 @@ Claude Artifact の `type: "text/html"` で作成する場合:
   <script>
     const yaml = `
 meta:
-  name: 簡単な承認フロー
-  purpose: 申請の承認が完了するまで
+  name: シンプルフロー
+  purpose: 完了するまで
   granularity: business
-  version: 2026-03-14
+  version: 2026-03-15
 lanes:
-  - id: lane-applicant
-    label: 申請者
+  - id: lane-1
+    label: 担当者
 nodes:
   - id: n1
     type: start
     label: 開始
-    lane: lane-applicant
+    lane: lane-1
   - id: n2
     type: process
-    label: 処理する
-    lane: lane-applicant
+    label: 作業する
+    lane: lane-1
   - id: n3
     type: end
     label: 完了
-    lane: lane-applicant
+    lane: lane-1
 edges:
   - id: e1
     source: n1
@@ -195,12 +214,13 @@ edges:
   - id: e2
     source: n2
     target: n3
-`;
+`.trim();
+
     Ayatori.render({
-      container: document.getElementById('root'),
-      yaml: yaml.trim(),
+      container: document.getElementById("root"),
+      yaml,
       editable: true,
-      theme: 'auto',
+      theme: "auto",
     });
   </script>
 </body>
@@ -211,69 +231,62 @@ edges:
 
 ### `Ayatori.render(options)`
 
-フローチャートをコンテナにレンダリングする。
-
 | パラメータ | 型 | デフォルト | 説明 |
-|-----------|------|---------|------|
-| `container` | `HTMLElement` | (必須) | レンダリング先のDOM要素 |
-| `yaml` | `string` | (必須) | フローチャート定義のYAML文字列 |
-| `editable` | `boolean` | `true` | 編集可能モードを有効にするか（無効時は閲覧専用） |
-| `onYamlChange` | `(yaml: string) => void` | - | YAML変更時のコールバック |
+|---|---|---|---|
+| `container` | `HTMLElement` | 必須 | レンダリング先DOM |
+| `yaml` | `string` | 必須 | フローチャートYAML |
+| `editable` | `boolean` | `true` | 編集可能モード（`false` で閲覧専用） |
+| `onYamlChange` | `(yaml: string) => void` | - | YAML変更通知 |
 | `theme` | `"light" \| "dark" \| "auto"` | `"auto"` | テーマ |
 
-**戻り値:** `AyatoriInstance`
+戻り値:
 
-```typescript
+```ts
 interface AyatoriInstance {
-  setYaml(yaml: string): void;  // YAMLを更新
-  getYaml(): string;            // 現在のYAMLを取得
-  destroy(): void;              // インスタンスを破棄
+  setYaml(yaml: string): void;
+  getYaml(): string;
+  destroy(): void;
 }
 ```
 
-## 機能
+## ライブラリに含まれる主機能
 
-ライブラリに含まれる機能:
+1. 通常版同等の編集UI（メニューバー / サイドバー / YAMLパネル）
+2. ビジュアル編集（React Flow）
+3. YAML編集 / YAML保存
+4. 自動レイアウト（ELK.js）
+5. レーン / フェーズ編集（追加・名称変更・並び替え・削除）
+6. ノード種別（開始 / 終了 / 処理 / 分岐）
+7. テーマ切替（light / dark / auto）
+8. 初期YAMLとの差分バナー（`editable: true` 時）
 
-1. **通常版と同等の編集UI**: メニューバー / サイドバー / YAMLパネルを含むフルエディタ
-2. **ビジュアル表示**: React Flow ベースのフローチャート表示（パン/ズーム対応）
-3. **YAML 編集とダウンロード**: YAMLパネル編集と `.yaml` ファイル保存
-4. **自動レイアウト**: ELK.js による自動配置（読み込み時に実行）
-5. **レーン/フェーズ編集**: ヘッダー上で追加・名称変更・並び替え・削除
-6. **6種のノード**: 開始/終了（楕円）、処理（角丸矩形）、分岐（ダイヤモンド）、データ（灰色）、手作業（オレンジ）、参照（青）
-7. **テーマ**: ライト/ダーク/自動切り替え
-8. **埋め込み専用差分バナー**: 初期YAMLから変更がある場合に「編集されています」を表示
+## コンテナサイズ（必須）
 
-## YAML の書き方
-
-フローチャートの YAML 仕様は [ayatori-flow-yaml](../ayatori-flow-yaml/SKILL.md) スキルを参照。
-
-## コンテナのサイズ
-
-コンテナ要素には **明示的な高さ** を設定すること。React Flow は親要素のサイズに基づいてキャンバスを描画する。
+React Flow は親要素サイズが必要。必ず高さを明示する。
 
 ```html
-<!-- ✅ 良い例: 高さが明示されている -->
-<div id="root" style="width: 100%; height: 600px;"></div>
+<!-- OK -->
+<div id="root" style="width:100%; height:100vh;"></div>
 
-<!-- ✅ 良い例: viewport 全体を使う -->
-<div id="root" style="width: 100%; height: 100vh;"></div>
-
-<!-- ❌ 悪い例: 高さがない（表示されない） -->
+<!-- NG -->
 <div id="root"></div>
 ```
 
-## ビルド方法
+## ビルド
 
 ```bash
 npm run build:lib
 ```
 
-出力: `dist-lib/ayatori.iife.js`（CSS インライン済み、全依存バンドル済み）
+出力: `dist-lib/ayatori.iife.js`（CSSインライン済み）
 
-## 注意事項
+## よくある失敗と対処
 
-- バンドルサイズは約 600KB (gzip)。React, React Flow, ELK.js を含む
-- フォントは Google Fonts から読み込まれる（Noto Sans JP）
-- Claude Artifact の CSP 制限により、外部スクリプト読み込みが制限される場合がある
-- その場合はバンドル内容を直接 `<script>` タグにインラインで配置する
+- 何も表示されない  
+  - `#root` に高さがない可能性が高い。
+- ライブラリ読込に失敗する  
+  - CSP 制限を疑い、IIFE をインライン埋め込みに切り替える。
+- 変更通知を受け取れない  
+  - `editable: true` と `onYamlChange` を同時に設定しているか確認する。
+- 多重描画・メモリリーク  
+  - 再レンダリング時に `instance.destroy()` を呼ぶ。
