@@ -23,23 +23,6 @@ interface ParsedYaml {
   normalizedYaml: string;
 }
 
-function appendDebugLog(payload: {
-  hypothesisId: string;
-  location: string;
-  message: string;
-  data: Record<string, unknown>;
-  timestamp: number;
-}) {
-  try {
-    // @ts-expect-error debug-only require guard
-    if (typeof require !== "function") return;
-    // @ts-expect-error debug-only require guard
-    require("fs").appendFileSync("/opt/cursor/logs/debug.log", `${JSON.stringify(payload)}\n`);
-  } catch {
-    // no-op in browser-only runtime
-  }
-}
-
 function parseAndNormalizeYaml(input: string): ParsedYaml {
   const schema = yamlToSchema(input);
   const normalizedYaml = schemaToYaml(schema);
@@ -78,17 +61,6 @@ function AyatoriEmbedInner({
   const [editorKey, setEditorKey] = useState(0);
   const [pendingBaselineSync, setPendingBaselineSync] = useState(true);
   const currentYamlRef = useRef("");
-  const baseYamlRef = useRef("");
-  const pendingBaselineSyncRef = useRef(true);
-  const debugSeqRef = useRef(0);
-
-  useEffect(() => {
-    baseYamlRef.current = baseYaml;
-  }, [baseYaml]);
-
-  useEffect(() => {
-    pendingBaselineSyncRef.current = pendingBaselineSync;
-  }, [pendingBaselineSync]);
 
   const hasChanges = useMemo(
     () => currentYaml.length > 0 && currentYaml !== baseYaml,
@@ -98,73 +70,16 @@ function AyatoriEmbedInner({
   const handleSchemaChange = useCallback(
     (nextSchema: FlowChartSchema) => {
       const normalized = schemaToYaml(nextSchema);
-      const seq = (debugSeqRef.current += 1);
-      // #region agent log
-      appendDebugLog({
-        hypothesisId: "A",
-        location: "src/lib-editor.tsx:handleSchemaChange:entry",
-        message: "Schema callback received",
-        data: {
-          seq,
-          closurePendingBaselineSync: pendingBaselineSync,
-          refPendingBaselineSync: pendingBaselineSyncRef.current,
-          hasLayout: nextSchema.layout !== null,
-          baseLen: baseYamlRef.current.length,
-          currentLen: currentYamlRef.current.length,
-          normalizedLen: normalized.length,
-        },
-        timestamp: Date.now(),
-      });
-      // #endregion
       currentYamlRef.current = normalized;
       setCurrentYaml(normalized);
       if (pendingBaselineSync) {
         if (nextSchema.layout === null) {
-          // #region agent log
-          appendDebugLog({
-            hypothesisId: "A",
-            location: "src/lib-editor.tsx:handleSchemaChange:pending-no-layout",
-            message: "Pending baseline sync waits for layout",
-            data: {
-              seq,
-              hasLayout: false,
-            },
-            timestamp: Date.now(),
-          });
-          // #endregion
           return;
         }
         setBaseYaml(normalized);
         setPendingBaselineSync(false);
-        // #region agent log
-        appendDebugLog({
-          hypothesisId: "A",
-          location: "src/lib-editor.tsx:handleSchemaChange:baseline-synced",
-          message: "Baseline synced on first schema with layout",
-          data: {
-            seq,
-            normalizedLen: normalized.length,
-            normalizedEqualsCurrentRef: normalized === currentYamlRef.current,
-          },
-          timestamp: Date.now(),
-        });
-        // #endregion
         return;
       }
-      // #region agent log
-      appendDebugLog({
-        hypothesisId: "D",
-        location: "src/lib-editor.tsx:handleSchemaChange:emit-onYamlChange",
-        message: "Forwarding schema as YAML change",
-        data: {
-          seq,
-          equalsBaseRef: normalized === baseYamlRef.current,
-          baseLen: baseYamlRef.current.length,
-          normalizedLen: normalized.length,
-        },
-        timestamp: Date.now(),
-      });
-      // #endregion
       onYamlChange?.(normalized);
     },
     [onYamlChange, pendingBaselineSync],
@@ -173,20 +88,6 @@ function AyatoriEmbedInner({
   const loadYamlIntoEditor = useCallback(
     (yaml: string, resetBaseline: boolean) => {
       const parsed = parseAndNormalizeYaml(yaml);
-      // #region agent log
-      appendDebugLog({
-        hypothesisId: "C",
-        location: "src/lib-editor.tsx:loadYamlIntoEditor",
-        message: "Loading yaml into embed editor",
-        data: {
-          resetBaseline,
-          parsedHasLayout: parsed.schema.layout !== null,
-          parsedLen: parsed.normalizedYaml.length,
-          pendingBaselineBefore: pendingBaselineSyncRef.current,
-        },
-        timestamp: Date.now(),
-      });
-      // #endregion
       currentYamlRef.current = parsed.normalizedYaml;
       setSchema(parsed.schema);
       setCurrentYaml(parsed.normalizedYaml);
@@ -200,24 +101,6 @@ function AyatoriEmbedInner({
     },
     [],
   );
-
-  useEffect(() => {
-    // #region agent log
-    appendDebugLog({
-      hypothesisId: "E",
-      location: "src/lib-editor.tsx:dirty-state-effect",
-      message: "Dirty banner state recalculated",
-      data: {
-        hasChanges,
-        pendingBaselineSync,
-        currentLen: currentYaml.length,
-        baseLen: baseYaml.length,
-        equalsBase: currentYaml === baseYaml,
-      },
-      timestamp: Date.now(),
-    });
-    // #endregion
-  }, [hasChanges, pendingBaselineSync, currentYaml, baseYaml]);
 
   useEffect(() => {
     try {
