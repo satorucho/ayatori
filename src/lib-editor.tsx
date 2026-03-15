@@ -73,6 +73,9 @@ function AyatoriEmbedInner({
       currentYamlRef.current = normalized;
       setCurrentYaml(normalized);
       if (pendingBaselineSync) {
+        if (nextSchema.layout === null) {
+          return;
+        }
         setBaseYaml(normalized);
         setPendingBaselineSync(false);
         return;
