@@ -5,9 +5,6 @@ const NODE_TYPE_TO_STYLE: Record<NodeType, NodeStyle> = {
   end: "default",
   process: "default",
   decision: "default",
-  data: "gray",
-  manual: "orange",
-  reference: "blue-ref",
 };
 
 export function getDefaultStyle(nodeType: NodeType): NodeStyle {

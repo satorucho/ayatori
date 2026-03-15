@@ -32,7 +32,6 @@ const EMPTY_SCHEMA: FlowChartSchema = {
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
     {
@@ -45,7 +44,6 @@ const EMPTY_SCHEMA: FlowChartSchema = {
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
   ],

@@ -22,7 +22,6 @@ const VALID_SCHEMA = {
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
     {
@@ -35,7 +34,6 @@ const VALID_SCHEMA = {
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
   ],
@@ -101,6 +99,22 @@ describe("validateSchema", () => {
     if (!result.valid) {
       expect(
         result.errors.some((e) => e.message.includes("nonexistent-node")),
+      ).toBe(true);
+    }
+  });
+
+  it("未対応ノード種別でエラー", () => {
+    const schema = {
+      ...VALID_SCHEMA,
+      nodes: VALID_SCHEMA.nodes.map((n) =>
+        n.id === "n2" ? { ...n, type: "manual" } : n,
+      ),
+    } as unknown;
+    const result = validateSchema(schema);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(
+        result.errors.some((e) => e.path.includes(".type") && e.message.includes("未対応")),
       ).toBe(true);
     }
   });

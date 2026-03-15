@@ -46,6 +46,7 @@ jobs:
         run: |
           test -f dist/logo.svg
           test -f dist/logo_sm.svg
+          test -f dist/embed/index.html
           test -f dist/sample-flows/simple-flow.yaml
           test -f dist/sample-flows/asis-flow.yaml
 

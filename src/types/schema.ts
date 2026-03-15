@@ -68,10 +68,7 @@ export type NodeType =
   | "start"
   | "end"
   | "process"
-  | "decision"
-  | "data"
-  | "manual"
-  | "reference";
+  | "decision";
 
 /** ノードのスタイルバリアント */
 export type NodeStyle =
@@ -104,11 +101,6 @@ export interface FlowNode {
    * decision 以外のノードでは null。
    */
   decisionMeta: DecisionMeta | null;
-  /**
-   * 参照先ノードID。reference タイプの場合のみ使用。
-   * 参照先ノードと同じテキスト・同じ色で描画される。
-   */
-  referenceTargetId: string | null;
   /**
    * タイムゾーンラベル（日次運用フロー等で使用）。
    * 例: "2日以上前", "前日", "当日朝〜締切"

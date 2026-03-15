@@ -76,9 +76,10 @@ nodes:
     phase: phase-b
     timeLabel: 当日朝〜締切
   - id: n-b6
-    type: manual
+    type: process
     label: 変更・キャンセル
     lane: lane-orderer
+    style: orange
     sublabel: PF不可→電話で玉子屋に連絡
     phase: phase-b
     timeLabel: 締切後

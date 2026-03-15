@@ -9,6 +9,7 @@ export function validateSchema(
   data: unknown,
 ): { valid: true; schema: FlowChartSchema } | { valid: false; errors: ValidationError[] } {
   const errors: ValidationError[] = [];
+  const validNodeTypes = new Set(["start", "end", "process", "decision"]);
 
   if (!data || typeof data !== "object") {
     return { valid: false, errors: [{ path: "", message: "データがオブジェクトではありません" }] };
@@ -72,6 +73,12 @@ export function validateSchema(
 
   // Validate node references
   for (const node of schema.nodes) {
+    if (!validNodeTypes.has(node.type)) {
+      errors.push({
+        path: `nodes[${node.id}].type`,
+        message: `ノード種別 "${String(node.type)}" は未対応です（start/end/process/decision のみ使用可能）`,
+      });
+    }
     if (!laneIds.has(node.lane)) {
       errors.push({
         path: `nodes[${node.id}].lane`,

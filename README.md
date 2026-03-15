@@ -10,7 +10,7 @@ JSON Schema で定義された構造化データと、React Flow ベースのビ
 
 - **双方向編集** — JSON ⇄ ビジュアルエディタのリアルタイム同期
 - **自動レイアウト** — ELK.js による layered アルゴリズムでレーン分離・分岐合流を自動配置
-- **6種のノード** — 開始/終了（楕円）、処理（角丸矩形）、分岐（ダイヤモンド）、データ（灰色）、手作業（オレンジ）、参照（青）
+- **4種のノード** — 開始（緑楕円）、終了（二重線楕円）、処理（角丸矩形）、分岐（ダイヤモンド）
 - **コメント機構** — ノード/エッジにコメントを付与し、JSON 経由で AI に修正を依頼するワークフローに対応
 - **入力検証 + UI通知** — JSON/YAML 読込時にスキーマ検証し、成功/失敗を画面通知
 - **キーボード操作** — `⌘/Ctrl+O` 読込 / `⌘/Ctrl+S` 保存 / `⌘/Ctrl+L` 自動レイアウト / `⌘/Ctrl+B` サイドバー開閉
@@ -139,13 +139,10 @@ src/
 │   ├── FlowEditor.tsx           # メインエディタ
 │   ├── Toolbar.tsx              # ツールバー (ファイル操作・エクスポート)
 │   ├── Sidebar.tsx              # サイドバー (プロパティ・コメント)
-│   ├── nodes/                   # カスタムノード (6種)
+│   ├── nodes/                   # カスタムノード (4種)
 │   │   ├── StartEndNode.tsx     # 開始/終了 (楕円)
 │   │   ├── ProcessNode.tsx      # 処理 (角丸矩形)
 │   │   ├── DecisionNode.tsx     # 分岐 (ダイヤモンド)
-│   │   ├── DataNode.tsx         # データ (灰色矩形)
-│   │   ├── ManualNode.tsx       # 手作業 (オレンジ矩形)
-│   │   └── ReferenceNode.tsx    # 参照 (青矩形)
 │   ├── edges/
 │   │   └── FlowEdge.tsx         # カスタムエッジ (6種描画対応)
 │   ├── overlays/
@@ -185,7 +182,7 @@ npm test
 | `tests/layout/sizing.test.ts` | テキスト幅計算、図形サイズ計算 (全角/半角/混在) |
 | `tests/schema/hydrate.test.ts` | hydrate/dehydrate と YAML roundtrip の整合性 |
 | `tests/schema/parse.test.ts` | JSON/YAML 読込時の解析・検証エラー処理 |
-| `tests/schema/validate.test.ts` | スキーマバリデーション (必須フィールド・参照整合性) |
+| `tests/schema/validate.test.ts` | スキーマバリデーション (必須フィールド・参照整合性・ノード種別) |
 
 ---
 
@@ -211,6 +208,8 @@ npm test
 機能: ビジュアル表示 / YAML 編集 / YAML ダウンロード / 自動レイアウト / テーマ切り替え
 
 詳細は `agent-skill/ayatori-create-artifact/SKILL.md` を参照。
+
+GitHub Pages にデプロイした場合、埋め込み版のサンプルは `./embed/` で確認できる。
 
 ---
 
