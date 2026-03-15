@@ -26,8 +26,12 @@ import { useTheme, useThemeColors } from "../theme/useTheme.ts";
 import { LayoutContext } from "./contexts/LayoutContext.ts";
 import { EditContext } from "./contexts/EditContext.ts";
 
-interface FlowEditorProps {
+export interface FlowEditorProps {
   initialSchema: FlowChartSchema;
+  editable?: boolean;
+  onSchemaChange?: (schema: FlowChartSchema) => void;
+  initialSidebarOpen?: boolean;
+  initialYamlEditorOpen?: boolean;
 }
 
 function ArrowDefs() {
@@ -90,7 +94,13 @@ function ArrowDefs() {
   );
 }
 
-function FlowEditorInner({ initialSchema }: FlowEditorProps) {
+function FlowEditorInner({
+  initialSchema,
+  editable = true,
+  onSchemaChange,
+  initialSidebarOpen = true,
+  initialYamlEditorOpen = false,
+}: FlowEditorProps) {
   const {
     nodes,
     edges,
@@ -128,14 +138,18 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   const { isDark } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [yamlEditorOpen, setYamlEditorOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
+  const [yamlEditorOpen, setYamlEditorOpen] = useState(initialYamlEditorOpen);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
   const initialLayoutDone = useRef(false);
   const { fitBounds, getNodes, getZoom } = useReactFlow();
+
+  useEffect(() => {
+    onSchemaChange?.(schema);
+  }, [schema, onSchemaChange]);
 
   const customFitView = useCallback(() => {
     const allNodes = getNodes();
@@ -210,6 +224,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         (e.target instanceof HTMLElement && e.target.isContentEditable);
       if (isInput) return;
 
+      if (!editable) return;
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -221,7 +236,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, editable]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
@@ -266,6 +281,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
 
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, rfNode: { id: string }) => {
+      if (!editable) return;
       const node = schema.nodes.find((n) => n.id === rfNode.id);
       if (!node) return;
       const el = document.querySelector(
@@ -281,10 +297,14 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
       });
       setTimeout(() => editNodeRef.current?.focus(), 0);
     },
-    [schema.nodes, getZoom],
+    [schema.nodes, getZoom, editable],
   );
 
   const commitNodeEdit = useCallback(() => {
+    if (!editable) {
+      setEditingNode(null);
+      return;
+    }
     if (editingNode && editingNode.value.trim()) {
       updateSchema((prev) => ({
         ...prev,
@@ -296,11 +316,12 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
       }));
     }
     setEditingNode(null);
-  }, [editingNode, updateSchema]);
+  }, [editingNode, updateSchema, editable]);
 
   // --- EditContext for edge label inline editing ---
   const updateNodeLabel = useCallback(
     (nodeId: string, label: string) => {
+      if (!editable) return;
       updateSchema((prev) => ({
         ...prev,
         nodes: prev.nodes.map((n) =>
@@ -308,11 +329,12 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         ),
       }));
     },
-    [updateSchema],
+    [updateSchema, editable],
   );
 
   const updateEdgeLabel = useCallback(
     (edgeId: string, label: string) => {
+      if (!editable) return;
       updateSchema((prev) => ({
         ...prev,
         edges: prev.edges.map((e) =>
@@ -320,7 +342,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
         ),
       }));
     },
-    [updateSchema],
+    [updateSchema, editable],
   );
 
   const editCtx = useMemo(
@@ -368,30 +390,32 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
   return (
     <div className="h-full flex flex-col">
       <ArrowDefs />
-      <Toolbar
-        onAutoLayout={runAutoLayout}
-        onExportYAML={exportYAML}
-        onImportSchema={importSchema}
-        onExportSVG={handleExportSVG}
-        onExportHTML={handleExportHTML}
-        onExportPNG={handleExportPNG}
-        onAddNode={addNode}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        freeDrawMode={freeDrawMode}
-        onToggleFreeDrawMode={() => setFreeDrawMode(!freeDrawMode)}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        yamlEditorOpen={yamlEditorOpen}
-        onToggleYamlEditor={() => setYamlEditorOpen(!yamlEditorOpen)}
-        onAddLane={() => addLane()}
-        onAddPhase={() => addPhase()}
-        onNotify={pushNotice}
-      />
+      {editable && (
+        <Toolbar
+          onAutoLayout={runAutoLayout}
+          onExportYAML={exportYAML}
+          onImportSchema={importSchema}
+          onExportSVG={handleExportSVG}
+          onExportHTML={handleExportHTML}
+          onExportPNG={handleExportPNG}
+          onAddNode={addNode}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          freeDrawMode={freeDrawMode}
+          onToggleFreeDrawMode={() => setFreeDrawMode(!freeDrawMode)}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          yamlEditorOpen={yamlEditorOpen}
+          onToggleYamlEditor={() => setYamlEditorOpen(!yamlEditorOpen)}
+          onAddLane={() => addLane()}
+          onAddPhase={() => addPhase()}
+          onNotify={pushNotice}
+        />
+      )}
       <div className="flex-1 flex overflow-hidden">
-        {yamlEditorOpen && (
+        {editable && yamlEditorOpen && (
           <YamlEditorPanel
             schema={schema}
             onImportSchema={importSchema}
@@ -418,19 +442,22 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
                 edges={edgesWithSelection}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onReconnect={onReconnect}
-                onNodeDragStop={onNodeDragStop}
+                onConnect={editable ? onConnect : undefined}
+                onReconnect={editable ? onReconnect : undefined}
+                onNodeDragStop={editable ? onNodeDragStop : undefined}
                 reconnectRadius={20}
                 connectionMode={ConnectionMode.Loose}
                 onNodeClick={handleNodeClick}
                 onEdgeClick={handleEdgeClick}
-                onNodeDoubleClick={handleNodeDoubleClick}
+                onNodeDoubleClick={editable ? handleNodeDoubleClick : undefined}
                 onPaneClick={handlePaneClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 defaultEdgeOptions={{ type: "flowEdge" }}
                 colorMode={isDark ? "dark" : "light"}
+                nodesDraggable={editable}
+                nodesConnectable={editable}
+                elementsSelectable={editable}
               >
                 <Background />
                 <Controls showFitView={false}>
@@ -449,25 +476,25 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
                 <LaneOverlay
                   schema={schema}
                   laneBoundaries={laneBoundaries}
-                  onSwapLanes={swapLanes}
-                  onAddLane={addLane}
-                  onRenameLane={renameLane}
-                  onRemoveLane={removeLane}
+                  onSwapLanes={editable ? swapLanes : undefined}
+                  onAddLane={editable ? addLane : undefined}
+                  onRenameLane={editable ? renameLane : undefined}
+                  onRemoveLane={editable ? removeLane : undefined}
                 />
                 <PhaseOverlay
                   schema={schema}
                   phaseBoundaries={phaseBoundaries}
                   laneBoundaries={laneBoundaries}
-                  onAddPhase={addPhase}
-                  onRenamePhase={renamePhase}
-                  onRemovePhase={removePhase}
-                  onSwapPhases={swapPhases}
+                  onAddPhase={editable ? addPhase : undefined}
+                  onRenamePhase={editable ? renamePhase : undefined}
+                  onRemovePhase={editable ? removePhase : undefined}
+                  onSwapPhases={editable ? swapPhases : undefined}
                 />
               </ReactFlow>
             </LayoutContext.Provider>
           </EditContext.Provider>
 
-          {editingNode && (
+          {editable && editingNode && (
             <textarea
               ref={editNodeRef}
               className="fixed z-[9999] border border-blue-500 rounded outline-none text-center resize-none"
@@ -501,7 +528,7 @@ function FlowEditorInner({ initialSchema }: FlowEditorProps) {
             />
           )}
         </div>
-        {sidebarOpen && (
+        {editable && sidebarOpen && (
           <Sidebar
             schema={schema}
             updateSchema={updateSchema}

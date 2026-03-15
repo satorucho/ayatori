@@ -1,0 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap");
+
+@tailwind components;
+@tailwind utilities;
+
+.ayatori-embed-root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: "Noto Sans JP", sans-serif;
+  background-color: #fff;
+  color: #1f2937;
+}
+
+html.dark .ayatori-embed-root {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #94a3b8 !important;
+  border: 1.5px solid #fff !important;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.dark .react-flow__handle {
+  border-color: #23233a !important;
+}
+
+.react-flow__node:hover .react-flow__handle,
+.react-flow__handle:hover {
+  opacity: 1;
+}
+
+.react-flow__handle:hover {
+  background: #3b82f6 !important;
+  scale: 1.4;
+}
+
+.react-flow__node.selected .react-flow__handle {
+  opacity: 1;
+  background: #3b82f6 !important;
+}
+
+.react-flow__node.selected > div {
+  outline: none !important;
+}
+
+.react-flow__node.selected {
+  outline: none !important;
+  box-shadow: none !important;
+}

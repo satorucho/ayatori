@@ -26,14 +26,6 @@ interface ToolbarProps {
   onNotify?: (notice: { type: "success" | "error"; message: string }) => void;
 }
 
-function withBase(path: string): string {
-  const normalized = path.replace(/^\/+/, "");
-  const base = import.meta.env.BASE_URL.endsWith("/")
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL}/`;
-  return `${base}${normalized}`;
-}
-
 type MenuItem =
   | {
       type: "action";
@@ -46,13 +38,44 @@ type MenuItem =
 
 function AyatoriIcon() {
   return (
-    <img
-      src={withBase("logo_sm.svg")}
-      alt="Ayatori"
-      width={22}
-      height={22}
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 175 175"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
       className="shrink-0 dark:invert"
-    />
+      aria-hidden="true"
+    >
+      <g clipPath="url(#ayatori-icon-clip)">
+        <rect x="12.5" y="92.5" width="149" height="63" rx="31.5" stroke="black" strokeWidth="9" />
+        <rect
+          x="118.256"
+          y="167.636"
+          width="148.919"
+          height="63.0431"
+          rx="31.5216"
+          transform="rotate(-120 118.256 167.636)"
+          stroke="black"
+          strokeWidth="9"
+        />
+        <rect
+          x="1.14711"
+          y="136.114"
+          width="148.919"
+          height="63.0431"
+          rx="31.5216"
+          transform="rotate(-60 1.14711 136.114)"
+          stroke="black"
+          strokeWidth="9"
+        />
+      </g>
+      <defs>
+        <clipPath id="ayatori-icon-clip">
+          <rect width="175" height="175" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
   );
 }
 
