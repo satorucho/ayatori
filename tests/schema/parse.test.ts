@@ -22,7 +22,6 @@ const VALID_JSON = JSON.stringify({
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
     {
@@ -35,7 +34,6 @@ const VALID_JSON = JSON.stringify({
       style: "default",
       comments: [],
       decisionMeta: null,
-      referenceTargetId: null,
       timeLabel: null,
     },
   ],
@@ -130,6 +128,37 @@ edges: []
     }
   });
 
+  it("未対応ノード種別を拒否する", () => {
+    const invalidType = `
+meta:
+  name: NG
+  purpose: テストが完了するまで
+  granularity: business
+  version: 2026-03-14
+lanes:
+  - id: lane-0
+    label: 担当者
+nodes:
+  - id: n1
+    type: start
+    label: 開始
+    lane: lane-0
+  - id: n2
+    type: manual
+    label: 手作業
+    lane: lane-0
+edges:
+  - id: e1
+    source: n1
+    target: n2
+`;
+    const result = parseSchemaText(invalidType);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("未対応");
+    }
+  });
+
   it("layout情報を含むJSONを保持する", () => {
     const withLayout = JSON.stringify({
       schemaVersion: "1",
@@ -152,7 +181,6 @@ edges: []
           style: "default",
           comments: [],
           decisionMeta: null,
-          referenceTargetId: null,
           timeLabel: null,
         },
         {
@@ -165,7 +193,6 @@ edges: []
           style: "default",
           comments: [],
           decisionMeta: null,
-          referenceTargetId: null,
           timeLabel: null,
         },
       ],

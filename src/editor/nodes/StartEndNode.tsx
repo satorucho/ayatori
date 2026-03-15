@@ -19,13 +19,15 @@ export type StartEndNodeData = {
 type StartEndNodeType = Node<StartEndNodeData, "startEnd">;
 
 function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
-  const { label, sublabel, shapeWidth, shapeHeight } = data;
+  const { label, sublabel, shapeWidth, shapeHeight, nodeType } = data;
   const rx = shapeWidth;
   const ry = shapeHeight;
   const width = rx * 2;
   const height = ry * 2;
   const themeColors = useThemeColors();
-  const colors = themeColors.startEnd;
+  const isStart = nodeType === "start";
+  const isEnd = nodeType === "end";
+  const colors = isStart ? themeColors.green : themeColors.startEnd;
 
   return (
     <div style={{ width, height, position: "relative" }}>
@@ -50,6 +52,17 @@ function StartEndNode({ data, selected }: NodeProps<StartEndNodeType>) {
           stroke={colors.stroke}
           strokeWidth={1.5}
         />
+        {isEnd && rx > 5 && ry > 5 && (
+          <ellipse
+            cx={rx}
+            cy={ry}
+            rx={rx - 3}
+            ry={ry - 3}
+            fill="none"
+            stroke={colors.stroke}
+            strokeWidth={1}
+          />
+        )}
         {sublabel ? (
           <>
             <text

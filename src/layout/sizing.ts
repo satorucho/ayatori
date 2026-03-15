@@ -81,7 +81,7 @@ export function calculateShapeSize(
     return { width: rx, height: ry };
   }
 
-  // 矩形系: process, data, manual, reference
+  // 矩形系: process
   const minSize = isShortBranch ? MIN_SIZE.rectShort : MIN_SIZE.rect;
   const width = Math.max(metrics.maxWidth + paddingX2, minSize.width);
   const height = Math.max(metrics.totalHeight + paddingY2, minSize.height);

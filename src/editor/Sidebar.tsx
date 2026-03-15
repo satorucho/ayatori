@@ -22,9 +22,6 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "end", label: "終了" },
   { value: "process", label: "処理" },
   { value: "decision", label: "分岐" },
-  { value: "data", label: "データ" },
-  { value: "manual", label: "手作業" },
-  { value: "reference", label: "参照" },
 ];
 
 const NODE_STYLES: { value: NodeStyle; label: string }[] = [
@@ -32,7 +29,7 @@ const NODE_STYLES: { value: NodeStyle; label: string }[] = [
   { value: "gray", label: "グレー" },
   { value: "orange", label: "オレンジ" },
   { value: "green", label: "グリーン" },
-  { value: "blue-ref", label: "ブルー(参照)" },
+  { value: "blue-ref", label: "ブルー" },
   { value: "hypothesis", label: "仮説(点線)" },
 ];
 

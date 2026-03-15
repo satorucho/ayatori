@@ -12,6 +12,43 @@ function getHalfSize(node: FlowNode, width: number, height: number) {
 }
 
 describe("exportToSVG", () => {
+  it("start と end が視覚的に描き分けされる", () => {
+    const schema: FlowChartSchema = {
+      schemaVersion: "1",
+      meta: {
+        name: "start-end-visual",
+        purpose: "test",
+        granularity: "business",
+        version: "2026-03-14",
+      },
+      lanes: [{ id: "lane-a", label: "担当者", order: 0 }],
+      phases: [],
+      nodes: [
+        { id: "s", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "e", type: "end", label: "終了", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
+      ],
+      edges: [
+        { id: "e1", source: "s", target: "e", type: "normal", label: null, comments: [] },
+      ],
+      layout: {
+        positions: {
+          s: { x: 100, y: 100 },
+          e: { x: 100, y: 220 },
+        },
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+      designNotes: [],
+      openQuestions: [],
+    };
+
+    const sizes = computeAllSizes(schema);
+    const svg = exportToSVG(schema, schema.layout!, sizes);
+
+    expect(svg).toContain('fill="#e8f4e8"');
+    expect(svg).toContain('fill="#f5f5f5"');
+    expect(svg).toContain('fill="none" stroke="#222" stroke-width="1"');
+  });
+
   it("renders aligned lane headers and lane divider lines", async () => {
     const schema: FlowChartSchema = {
       schemaVersion: "1",
@@ -27,9 +64,9 @@ describe("exportToSVG", () => {
       ],
       phases: [],
       nodes: [
-        { id: "n1", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
-        { id: "n2", type: "process", label: "処理する", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
-        { id: "n3", type: "process", label: "確認する", sublabel: null, lane: "lane-b", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "n1", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "n2", type: "process", label: "処理する", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "n3", type: "process", label: "確認する", sublabel: null, lane: "lane-b", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
       ],
       edges: [
         { id: "e1", source: "n1", target: "n2", type: "normal", label: null, comments: [] },
@@ -81,8 +118,8 @@ describe("exportToSVG", () => {
       lanes: [{ id: "lane-a", label: "担当者", order: 0 }],
       phases: [],
       nodes: [
-        { id: "s", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
-        { id: "p", type: "process", label: "処理する", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "s", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "p", type: "process", label: "処理する", sublabel: null, lane: "lane-a", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
       ],
       edges: [
         { id: "e1", source: "s", target: "p", type: "normal", label: null, comments: [] },
@@ -147,10 +184,9 @@ describe("exportToSVG", () => {
           style: "default",
           comments: [],
           decisionMeta: { branchNumber: 1, yesDirection: "down", noDirection: "right" },
-          referenceTargetId: null,
           timeLabel: null,
         },
-        { id: "p1", type: "process", label: "再確認する", sublabel: null, lane: "lane-b", phase: null, style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "p1", type: "process", label: "再確認する", sublabel: null, lane: "lane-b", phase: null, style: "default", comments: [], decisionMeta: null, timeLabel: null },
       ],
       edges: [
         { id: "e-no", source: "d1", target: "p1", type: "no", label: "No", comments: [] },
@@ -208,9 +244,9 @@ describe("exportToSVG", () => {
         { id: "phase-b", label: "Phase B", order: 1 },
       ],
       nodes: [
-        { id: "n1", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: "phase-a", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
-        { id: "n2", type: "process", label: "登録する", sublabel: null, lane: "lane-b", phase: "phase-a", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
-        { id: "n3", type: "process", label: "確認する", sublabel: null, lane: "lane-a", phase: "phase-b", style: "default", comments: [], decisionMeta: null, referenceTargetId: null, timeLabel: null },
+        { id: "n1", type: "start", label: "開始", sublabel: null, lane: "lane-a", phase: "phase-a", style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "n2", type: "process", label: "登録する", sublabel: null, lane: "lane-b", phase: "phase-a", style: "default", comments: [], decisionMeta: null, timeLabel: null },
+        { id: "n3", type: "process", label: "確認する", sublabel: null, lane: "lane-a", phase: "phase-b", style: "default", comments: [], decisionMeta: null, timeLabel: null },
       ],
       edges: [
         { id: "e1", source: "n1", target: "n2", type: "normal", label: null, comments: [] },

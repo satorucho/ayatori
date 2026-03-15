@@ -429,31 +429,6 @@ export default function Toolbar({
             close();
           },
         },
-        { type: "divider" },
-        {
-          type: "action",
-          label: "データ",
-          onClick: () => {
-            onAddNode("data");
-            close();
-          },
-        },
-        {
-          type: "action",
-          label: "手動処理",
-          onClick: () => {
-            onAddNode("manual");
-            close();
-          },
-        },
-        {
-          type: "action",
-          label: "参照",
-          onClick: () => {
-            onAddNode("reference");
-            close();
-          },
-        },
       ]
     : [];
 

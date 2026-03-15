@@ -22,6 +22,7 @@ import type { LaneBoundary, PhaseBoundary } from "../../layout/types.ts";
 import { generateId } from "../../utils/id.ts";
 import { useUndoRedo } from "./useUndoRedo.ts";
 import { schemaToReactFlowEdges, schemaToReactFlowNodes } from "../adapters/flow-adapter.ts";
+import { getDefaultStyle } from "../../schema/defaults.ts";
 
 /**
  * Determine which lane a node belongs to based on its center-X position
@@ -545,9 +546,6 @@ export function useFlowState(initialSchema: FlowChartSchema) {
         end: "終了",
         process: "新規処理",
         decision: "判断",
-        data: "データ",
-        manual: "手動処理",
-        reference: "参照",
       };
 
       const newNode = {
@@ -557,13 +555,12 @@ export function useFlowState(initialSchema: FlowChartSchema) {
         sublabel: null,
         lane: defaultLane,
         phase: null,
-        style: "default" as const,
+        style: getDefaultStyle(nodeType),
         comments: [],
         decisionMeta:
           nodeType === "decision"
             ? { branchNumber: 1, yesDirection: "down" as const, noDirection: "right" as const }
             : null,
-        referenceTargetId: null,
         timeLabel: null,
       };
 

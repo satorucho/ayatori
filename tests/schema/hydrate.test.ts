@@ -102,7 +102,6 @@ describe("hydrate: 最小入力からのスキーマ生成", () => {
     expect(n1.style).toBe("default");
     expect(n1.comments).toEqual([]);
     expect(n1.decisionMeta).toBeNull();
-    expect(n1.referenceTargetId).toBeNull();
     expect(n1.timeLabel).toBeNull();
 
     const e1 = schema.edges[0];
@@ -142,27 +141,28 @@ describe("hydrate: 最小入力からのスキーマ生成", () => {
     });
   });
 
-  it("data/manual/reference ノードにデフォルトスタイルが適用される", () => {
+  it("start/process/decision/end ノードにデフォルトスタイルが適用される", () => {
     const input = {
       meta: { name: "t", purpose: "t", granularity: "business", version: "2026-01-01" },
       lanes: [{ id: "l", label: "l" }],
       nodes: [
         { id: "n1", type: "start", label: "s", lane: "l" },
-        { id: "n2", type: "data", label: "d", lane: "l" },
-        { id: "n3", type: "manual", label: "m", lane: "l" },
-        { id: "n4", type: "reference", label: "r", lane: "l" },
+        { id: "n2", type: "process", label: "p", lane: "l" },
+        { id: "n3", type: "decision", label: "d?", lane: "l" },
         { id: "n5", type: "end", label: "e", lane: "l" },
       ],
       edges: [
         { id: "e1", source: "n1", target: "n2" },
-        { id: "e2", source: "n2", target: "n5" },
+        { id: "e2", source: "n2", target: "n3" },
+        { id: "e3", source: "n3", target: "n5" },
       ],
     };
 
     const schema = hydrateSchema(input);
-    expect(schema.nodes.find((n) => n.id === "n2")!.style).toBe("gray");
-    expect(schema.nodes.find((n) => n.id === "n3")!.style).toBe("orange");
-    expect(schema.nodes.find((n) => n.id === "n4")!.style).toBe("blue-ref");
+    expect(schema.nodes.find((n) => n.id === "n1")!.style).toBe("default");
+    expect(schema.nodes.find((n) => n.id === "n2")!.style).toBe("default");
+    expect(schema.nodes.find((n) => n.id === "n3")!.style).toBe("default");
+    expect(schema.nodes.find((n) => n.id === "n5")!.style).toBe("default");
   });
 
   it("edge type=yes/no のラベルが自動補完される", () => {

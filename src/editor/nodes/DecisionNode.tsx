@@ -3,12 +3,13 @@ import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
 import { FONT } from "../../layout/constants.ts";
 import { useThemeColors } from "../../theme/useTheme.ts";
-import type { Comment, DecisionMeta } from "../../types/schema.ts";
+import type { Comment, DecisionMeta, NodeStyle } from "../../types/schema.ts";
 import CommentBadge from "../overlays/CommentBadge.tsx";
 
 export type DecisionNodeData = {
   label: string;
   sublabel: string | null;
+  nodeStyle: NodeStyle;
   comments: Comment[];
   decisionMeta: DecisionMeta | null;
   shapeWidth: number;
@@ -18,11 +19,20 @@ export type DecisionNodeData = {
 type DecisionNodeType = Node<DecisionNodeData, "decision">;
 
 function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
-  const { label, shapeWidth: W, shapeHeight: H } = data;
+  const { label, shapeWidth: W, shapeHeight: H, nodeStyle } = data;
   const width = W * 2;
   const height = H * 2;
   const themeColors = useThemeColors();
-  const colors = themeColors.default;
+  const styleMap: Record<string, { fill: string; stroke: string; text: string }> = {
+    default: themeColors.default,
+    gray: themeColors.gray,
+    orange: themeColors.orange,
+    green: themeColors.green,
+    "blue-ref": themeColors["blue-ref"],
+    hypothesis: themeColors.hypothesis,
+  };
+  const colors = styleMap[nodeStyle] ?? themeColors.default;
+  const isHypothesis = nodeStyle === "hypothesis";
 
   const lines = label.split("\n");
   const pad = 4;
@@ -43,6 +53,7 @@ function DecisionNode({ data, selected }: NodeProps<DecisionNodeType>) {
           fill={colors.fill}
           stroke={colors.stroke}
           strokeWidth={1.5}
+          strokeDasharray={isHypothesis ? "4,2" : undefined}
         />
         {lines.length === 1 ? (
           <text

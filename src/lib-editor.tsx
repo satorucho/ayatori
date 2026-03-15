@@ -74,6 +74,7 @@ function EmbedInner({
   onReady,
 }: AyatoriEmbedProps) {
   const [yamlText, setYamlText] = useState(initialYaml);
+  const [baseYaml, setBaseYaml] = useState(initialYaml);
   const [schema, setSchema] = useState<FlowChartSchema | null>(null);
   const [layoutState, setLayoutState] = useState<FlowLayout | null>(null);
   const [laneBoundaries, setLaneBoundaries] = useState<LaneBoundary[]>([]);
@@ -84,6 +85,7 @@ function EmbedInner({
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const { fitBounds, getNodes } = useReactFlow();
   const initializedRef = useRef(false);
+  const hasChanges = yamlText !== baseYaml;
 
   // Apply theme
   useEffect(() => {
@@ -121,6 +123,9 @@ function EmbedInner({
     queueMicrotask(() => {
       try {
         const s = yamlToSchema(initialYaml);
+        const normalized = schemaToYaml(s);
+        setYamlText(normalized);
+        setBaseYaml(normalized);
         void doLayout(s).then(() => {
           setTimeout(() => {
             const allNodes = getNodes();
@@ -151,26 +156,27 @@ function EmbedInner({
     if (!onReady) return;
     onReady({
       setYaml: (newYaml: string) => {
-        setYamlText(newYaml);
         try {
           const s = yamlToSchema(newYaml);
+          const normalized = schemaToYaml(s);
+          setYamlText(normalized);
+          setBaseYaml(normalized);
           doLayout(s);
         } catch (err) {
           setError(String(err));
         }
       },
-      getYaml: () => {
-        if (schema) return schemaToYaml(schema);
-        return yamlText;
-      },
+      getYaml: () => yamlText,
     });
-  }, [onReady, schema, yamlText, doLayout]);
+  }, [onReady, yamlText, doLayout]);
 
   const handleYamlApply = useCallback(() => {
     try {
       const s = yamlToSchema(yamlText);
+      const normalized = schemaToYaml(s);
+      setYamlText(normalized);
       doLayout(s);
-      onYamlChange?.(yamlText);
+      onYamlChange?.(normalized);
       setShowYaml(false);
     } catch (err) {
       setError(String(err));
@@ -178,7 +184,11 @@ function EmbedInner({
   }, [yamlText, doLayout, onYamlChange]);
 
   const handleDownloadYaml = useCallback(() => {
-    const content = schema ? schemaToYaml(schema) : yamlText;
+    const content = hasChanges
+      ? yamlText
+      : schema
+        ? schemaToYaml(schema)
+        : yamlText;
     const blob = new Blob([content], { type: "text/yaml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -186,7 +196,7 @@ function EmbedInner({
     a.download = `${schema?.meta.name ?? "flowchart"}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [schema, yamlText]);
+  }, [hasChanges, schema, yamlText]);
 
   const layoutCtx = useMemo(() => ({ phaseBoundaries }), [phaseBoundaries]);
   const editCtx = useMemo(() => ({
@@ -204,6 +214,19 @@ function EmbedInner({
       }}>
         <span style={{ fontWeight: 700, fontSize: 14 }}>Ayatori</span>
         <span style={{ color: "#999", fontSize: 11 }}>{schema?.meta.name ?? ""}</span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: hasChanges ? "#b91c1c" : "#15803d",
+            background: hasChanges ? "#fee2e2" : "#dcfce7",
+            border: `1px solid ${hasChanges ? "#fecaca" : "#bbf7d0"}`,
+            borderRadius: 999,
+            padding: "2px 8px",
+          }}
+        >
+          {hasChanges ? "● 変更あり" : "● 変更なし"}
+        </span>
         <div style={{ flex: 1 }} />
         {editable && (
           <button
@@ -213,8 +236,11 @@ function EmbedInner({
             {showYaml ? "ビジュアル" : "YAML編集"}
           </button>
         )}
-        <button onClick={handleDownloadYaml} style={btnStyle}>
-          YAMLダウンロード
+        <button
+          onClick={handleDownloadYaml}
+          style={hasChanges ? { ...btnStyle, background: "#111827", color: "#fff", borderColor: "#111827" } : btnStyle}
+        >
+          {hasChanges ? "変更後YAMLをダウンロード" : "YAMLダウンロード"}
         </button>
       </div>
 

@@ -47,7 +47,6 @@ type SparseNode = {
   style?: FlowNode["style"];
   comments?: FlowNode["comments"];
   decisionMeta?: Partial<FlowNode["decisionMeta"] & object>;
-  referenceTargetId?: string;
   timeLabel?: string;
 };
 
@@ -170,9 +169,6 @@ function dehydrateNode(node: FlowNode): Record<string, unknown> {
     result.decisionMeta = sparse;
   }
 
-  if (node.referenceTargetId !== null) {
-    result.referenceTargetId = node.referenceTargetId;
-  }
   if (node.timeLabel !== null) {
     result.timeLabel = node.timeLabel;
   }

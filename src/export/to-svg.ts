@@ -25,7 +25,8 @@ function avoidPhaseHeaders(
 }
 
 function getNodeColors(node: FlowNode) {
-  if (node.type === "start" || node.type === "end") return COLORS.startEnd;
+  if (node.type === "start") return COLORS.green;
+  if (node.type === "end") return COLORS.startEnd;
   switch (node.style) {
     case "gray":
       return COLORS.gray;
@@ -233,6 +234,11 @@ export function exportToSVG(
       parts.push(
         `<ellipse cx="${cx}" cy="${cy}" rx="${size.width}" ry="${size.height}" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1.5"${dashAttr}/>`,
       );
+      if (node.type === "end" && size.width > 5 && size.height > 5) {
+        parts.push(
+          `<ellipse cx="${cx}" cy="${cy}" rx="${size.width - 3}" ry="${size.height - 3}" fill="none" stroke="${colors.stroke}" stroke-width="1"/>`,
+        );
+      }
       if (node.sublabel) {
         parts.push(
           `<text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" font-size="${FONT.nodeMain.size}" font-weight="${FONT.nodeMain.weight}" fill="${colors.text}">${escapeXml(node.label)}</text>`,

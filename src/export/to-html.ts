@@ -13,9 +13,14 @@ export function exportToHTML(
   const legendItems: string[] = [];
   const usedTypes = new Set(schema.nodes.map((n) => n.type));
 
-  if (usedTypes.has("start") || usedTypes.has("end")) {
+  if (usedTypes.has("start")) {
     legendItems.push(
-      `<div class="legend-item"><svg width="36" height="22"><ellipse cx="18" cy="11" rx="16" ry="9" fill="#f5f5f5" stroke="#222" stroke-width="1.3"/></svg>開始/完了</div>`,
+      `<div class="legend-item"><svg width="36" height="22"><ellipse cx="18" cy="11" rx="16" ry="9" fill="#e8f4e8" stroke="#2a7a2a" stroke-width="1.3"/></svg>開始</div>`,
+    );
+  }
+  if (usedTypes.has("end")) {
+    legendItems.push(
+      `<div class="legend-item"><svg width="36" height="22"><ellipse cx="18" cy="11" rx="16" ry="9" fill="#f5f5f5" stroke="#222" stroke-width="1.3"/><ellipse cx="18" cy="11" rx="13.5" ry="6.5" fill="none" stroke="#222" stroke-width="1"/></svg>終了</div>`,
     );
   }
   if (usedTypes.has("process")) {
@@ -28,17 +33,6 @@ export function exportToHTML(
       `<div class="legend-item"><svg width="28" height="28"><polygon points="14,2 26,14 14,26 2,14" fill="#fff" stroke="#222" stroke-width="1.3"/></svg>分岐</div>`,
     );
   }
-  if (usedTypes.has("data")) {
-    legendItems.push(
-      `<div class="legend-item"><svg width="36" height="22"><rect x="1" y="1" width="34" height="20" rx="3" fill="#eee" stroke="#222" stroke-width="1.3"/></svg>データ/システム</div>`,
-    );
-  }
-  if (usedTypes.has("manual")) {
-    legendItems.push(
-      `<div class="legend-item"><svg width="36" height="22"><rect x="1" y="1" width="34" height="20" rx="3" fill="#fff4e5" stroke="#c87800" stroke-width="1.3"/></svg>手作業・課題</div>`,
-    );
-  }
-
   const notes: string[] = [];
   if (schema.designNotes.length > 0) {
     notes.push(

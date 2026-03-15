@@ -97,7 +97,7 @@ function hydratePhases(raw: unknown[] | undefined): Phase[] {
 }
 
 const VALID_NODE_TYPES: Set<string> = new Set([
-  "start", "end", "process", "decision", "data", "manual", "reference",
+  "start", "end", "process", "decision",
 ]);
 
 const VALID_EDGE_TYPES: Set<string> = new Set([
@@ -108,9 +108,12 @@ function hydrateNodes(raw: unknown[] | undefined): FlowNode[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((item, index) => {
     const obj = item as Record<string, unknown>;
-    const nodeType: NodeType = VALID_NODE_TYPES.has(obj.type as string)
-      ? (obj.type as NodeType)
-      : "process";
+    const rawNodeType =
+      typeof obj.type === "string"
+        ? obj.type
+        : "process";
+    const isValidNodeType = VALID_NODE_TYPES.has(rawNodeType);
+    const nodeType = rawNodeType as NodeType;
 
     return {
       id: typeof obj.id === "string" ? obj.id : `n${index + 1}`,
@@ -119,13 +122,13 @@ function hydrateNodes(raw: unknown[] | undefined): FlowNode[] {
       sublabel: typeof obj.sublabel === "string" ? obj.sublabel : null,
       lane: typeof obj.lane === "string" ? obj.lane : "",
       phase: typeof obj.phase === "string" ? obj.phase : null,
-      style: typeof obj.style === "string" ? (obj.style as FlowNode["style"]) : getDefaultStyle(nodeType),
+      style: typeof obj.style === "string"
+        ? (obj.style as FlowNode["style"])
+        : isValidNodeType
+          ? getDefaultStyle(nodeType)
+          : "default",
       comments: hydrateComments(obj.comments),
       decisionMeta: hydrateDecisionMeta(obj.decisionMeta, nodeType),
-      referenceTargetId:
-        typeof obj.referenceTargetId === "string"
-          ? obj.referenceTargetId
-          : null,
       timeLabel: typeof obj.timeLabel === "string" ? obj.timeLabel : null,
     };
   });
