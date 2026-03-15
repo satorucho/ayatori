@@ -35,26 +35,9 @@ function appendDebugLog(payload: {
 }) {
   try {
     // @ts-expect-error debug-only require guard
-    if (
-      // @ts-expect-error debug-only require guard
-      typeof require === "function"
-    ) {
-      try {
-        // @ts-expect-error debug-only require guard
-        require("fs").appendFileSync("/opt/cursor/logs/debug.log", `${JSON.stringify(payload)}\n`);
-        return;
-      } catch {
-        // fall through to browser relay endpoint
-      }
-    }
-    if (typeof window !== "undefined" && typeof fetch === "function") {
-      void fetch("http://127.0.0.1:4317/debug-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      }).catch(() => {});
-    }
+    if (typeof require !== "function") return;
+    // @ts-expect-error debug-only require guard
+    require("fs").appendFileSync("/opt/cursor/logs/debug.log", `${JSON.stringify(payload)}\n`);
   } catch {
     // no-op in browser-only runtime
   }
