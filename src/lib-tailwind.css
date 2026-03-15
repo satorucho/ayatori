@@ -1,7 +1,223 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap");
 
+/*
+ * Scoped Preflight — equivalent of @tailwind base limited to .ayatori-embed-root.
+ *
+ * Strategy:
+ *   - Universal reset (.ayatori-embed-root *): normal specificity (0,1,0) so it
+ *     beats host-page element selectors like `button { border: 1px solid }`.
+ *     Placed BEFORE @tailwind so equal-specificity utilities win by source order.
+ *   - Element-specific resets: :where() for near-zero specificity so Tailwind
+ *     utility classes always override them.
+ */
+
+.ayatori-embed-root *,
+.ayatori-embed-root *::before,
+.ayatori-embed-root *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: #e5e7eb;
+}
+
+:where(html.dark) .ayatori-embed-root *,
+:where(html.dark) .ayatori-embed-root *::before,
+:where(html.dark) .ayatori-embed-root *::after {
+  border-color: #374151;
+}
+
+:where(.ayatori-embed-root) {
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+}
+
+:where(.ayatori-embed-root) hr {
+  height: 0;
+  color: inherit;
+  border-top-width: 1px;
+}
+
+:where(.ayatori-embed-root) h1,
+:where(.ayatori-embed-root) h2,
+:where(.ayatori-embed-root) h3,
+:where(.ayatori-embed-root) h4,
+:where(.ayatori-embed-root) h5,
+:where(.ayatori-embed-root) h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+:where(.ayatori-embed-root) a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+:where(.ayatori-embed-root) b,
+:where(.ayatori-embed-root) strong {
+  font-weight: bolder;
+}
+
+:where(.ayatori-embed-root) code,
+:where(.ayatori-embed-root) kbd,
+:where(.ayatori-embed-root) samp,
+:where(.ayatori-embed-root) pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 1em;
+}
+
+:where(.ayatori-embed-root) small {
+  font-size: 80%;
+}
+
+:where(.ayatori-embed-root) table {
+  text-indent: 0;
+  border-color: inherit;
+  border-collapse: collapse;
+}
+
+:where(.ayatori-embed-root) button,
+:where(.ayatori-embed-root) input,
+:where(.ayatori-embed-root) optgroup,
+:where(.ayatori-embed-root) select,
+:where(.ayatori-embed-root) textarea {
+  font-family: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  font-size: 100%;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+:where(.ayatori-embed-root) button,
+:where(.ayatori-embed-root) select {
+  text-transform: none;
+}
+
+:where(.ayatori-embed-root) button,
+:where(.ayatori-embed-root) input[type="button"],
+:where(.ayatori-embed-root) input[type="reset"],
+:where(.ayatori-embed-root) input[type="submit"] {
+  -webkit-appearance: button;
+  background-color: transparent;
+  background-image: none;
+}
+
+:where(.ayatori-embed-root) :-moz-focusring {
+  outline: auto;
+}
+
+:where(.ayatori-embed-root) :-moz-ui-invalid {
+  box-shadow: none;
+}
+
+:where(.ayatori-embed-root) ::-webkit-inner-spin-button,
+:where(.ayatori-embed-root) ::-webkit-outer-spin-button {
+  height: auto;
+}
+
+:where(.ayatori-embed-root) [type="search"] {
+  -webkit-appearance: textfield;
+  outline-offset: -2px;
+}
+
+:where(.ayatori-embed-root) ::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+:where(.ayatori-embed-root) ::-webkit-file-upload-button {
+  -webkit-appearance: button;
+  font: inherit;
+}
+
+:where(.ayatori-embed-root) summary {
+  display: list-item;
+}
+
+:where(.ayatori-embed-root) blockquote,
+:where(.ayatori-embed-root) dl,
+:where(.ayatori-embed-root) dd,
+:where(.ayatori-embed-root) h1,
+:where(.ayatori-embed-root) h2,
+:where(.ayatori-embed-root) h3,
+:where(.ayatori-embed-root) h4,
+:where(.ayatori-embed-root) h5,
+:where(.ayatori-embed-root) h6,
+:where(.ayatori-embed-root) hr,
+:where(.ayatori-embed-root) figure,
+:where(.ayatori-embed-root) p,
+:where(.ayatori-embed-root) pre {
+  margin: 0;
+}
+
+:where(.ayatori-embed-root) fieldset {
+  margin: 0;
+  padding: 0;
+}
+
+:where(.ayatori-embed-root) legend {
+  padding: 0;
+}
+
+:where(.ayatori-embed-root) ol,
+:where(.ayatori-embed-root) ul,
+:where(.ayatori-embed-root) menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+:where(.ayatori-embed-root) dialog {
+  padding: 0;
+}
+
+:where(.ayatori-embed-root) textarea {
+  resize: vertical;
+}
+
+:where(.ayatori-embed-root) input::placeholder,
+:where(.ayatori-embed-root) textarea::placeholder {
+  opacity: 1;
+  color: #9ca3af;
+}
+
+:where(.ayatori-embed-root) button,
+:where(.ayatori-embed-root) [role="button"] {
+  cursor: pointer;
+}
+
+:where(.ayatori-embed-root) :disabled {
+  cursor: default;
+}
+
+:where(.ayatori-embed-root) img,
+:where(.ayatori-embed-root) svg,
+:where(.ayatori-embed-root) video,
+:where(.ayatori-embed-root) canvas,
+:where(.ayatori-embed-root) audio,
+:where(.ayatori-embed-root) iframe,
+:where(.ayatori-embed-root) embed,
+:where(.ayatori-embed-root) object {
+  display: block;
+  vertical-align: middle;
+}
+
+:where(.ayatori-embed-root) img,
+:where(.ayatori-embed-root) video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- Tailwind components & utilities --- */
+
 @tailwind components;
 @tailwind utilities;
+
+/* --- Root element styles (normal specificity, after utilities) --- */
 
 .ayatori-embed-root {
   height: 100%;
@@ -16,6 +232,8 @@ html.dark .ayatori-embed-root {
   background-color: #111827;
   color: #e5e7eb;
 }
+
+/* --- React Flow overrides --- */
 
 .react-flow__handle {
   width: 8px !important;
