@@ -49,9 +49,6 @@ openQuestions:  # 省略可
 | `end` | 楕円 | フロー終了点 | `default` |
 | `process` | 角丸矩形 | 通常の処理ステップ | `default` |
 | `decision` | ダイヤモンド | Yes/No 分岐 | `default` |
-| `data` | 矩形 | データ/システム連携 | `gray` |
-| `manual` | 矩形 | 手作業・課題ステップ | `orange` |
-| `reference` | 矩形 | 別ノードへの参照 | `blue-ref` |
 
 ## ノードの省略可能フィールド
 
@@ -64,7 +61,6 @@ openQuestions:  # 省略可
 | `style` | type から自動判定 | 上表参照。type と異なる色にしたい時のみ指定 |
 | `comments` | 空 | レビューコメント |
 | `decisionMeta` | decision時は自動生成 | 分岐の詳細設定 |
-| `referenceTargetId` | なし | reference ノード専用 |
 | `timeLabel` | なし | 日次運用等の時間帯ラベル |
 
 ### style の選択肢

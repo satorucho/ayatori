@@ -1,8 +1,29 @@
 {
-  "name": "ayatori",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@strtehu/ayatori",
+  "version": "0.1.1",
   "type": "module",
+  "description": "Embeddable flowchart editor — a single IIFE bundle with CSS inlined",
+  "license": "MIT",
+  "keywords": [
+    "flowchart",
+    "editor",
+    "embed",
+    "iife",
+    "react-flow"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/strtehu/ayatori"
+  },
+  "files": [
+    "dist-lib/ayatori.iife.js",
+    "dist-lib/sample-flows/",
+    "LICENSE"
+  ],
+  "main": "dist-lib/ayatori.iife.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +32,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build:lib": "vite build --config vite.config.lib.ts"
+    "build:lib": "vite build --config vite.config.lib.ts",
+    "prepublishOnly": "npm run build:lib"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.2",

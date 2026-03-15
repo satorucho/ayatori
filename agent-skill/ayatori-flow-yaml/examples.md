@@ -163,10 +163,11 @@ nodes:
     phase: phase-b
     timeLabel: 当日朝〜締切
   - id: n-b6
-    type: manual
+    type: process
     label: 変更・キャンセル
     lane: lane-orderer
     sublabel: PF不可→電話で玉子屋に連絡
+    style: orange
     phase: phase-b
     timeLabel: 締切後
   - id: n-b7
@@ -252,6 +253,6 @@ openQuestions:
 - `phases` を使って業務を 3 段階に分割。各ノードに `phase` を指定
 - `timeLabel` で日次運用の時間帯を表現（「2日以上前」「前日」「当日朝〜締切」「締切後」）
 - `subtitle` で meta にフローの概要を補足
-- n-b6 は `type: manual`（手作業ステップ）で自動的にオレンジ色になる
+- n-b6 は `style: orange` で手作業ステップであることを色で表現
 - n-a4 から Phase B（n-b1）と Phase C（n-c1）に分岐（並行フロー）
 - エッジ ID は `ea1`, `eb1`, `ec1` のようにフェーズごとにプレフィックスを使い分けている
