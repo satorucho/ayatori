@@ -19,7 +19,7 @@ import { createRoot } from "react-dom/client";
 import { AyatoriEmbed } from "./lib-editor.tsx";
 
 // Import CSS so it gets bundled
-import "./lib-styles.css";
+import "./lib-tailwind.css";
 
 export interface AyatoriRenderOptions {
   /** Container element to render into */
